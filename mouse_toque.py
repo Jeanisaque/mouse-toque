@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado por Isaque Andrade e Joel Andrade"
-VERSAO = "1.8"
+VERSAO = "1.9"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -889,10 +889,10 @@ body.digitando #controle{display:none}
 .ctl-topo{display:grid;grid-template-columns:3fr 1fr;gap:8px}
 .ctl-topo .tv-btn{height:48px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px}
 .ctl-mic{background:#1d2a44 !important;border-color:#2f4570 !important}
-.dpad{width:min(74vw,290px);aspect-ratio:1/1;margin:2px auto;border-radius:50%;background:#2a2f3a;border:1px solid #363c49;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));flex:none}
+.dpad{width:min(78vw,300px);aspect-ratio:1/1;margin:2px auto;border-radius:50%;background:#2a2f3a;border:1px solid #363c49;display:grid;grid-template-columns:1fr 1.5fr 1fr;grid-template-rows:1fr 1.5fr 1fr;flex:none}
 .dpad .dp{height:auto;background:transparent;border:0;border-radius:50%;font-size:22px;color:#c9cfdb}
 .dpad .cima{grid-area:1/2}.dpad .esq{grid-area:2/1}.dpad .dir{grid-area:2/3}.dpad .baixo{grid-area:3/2}
-.dpad .ok{grid-area:2/2;margin:6%;background:#14171d;border:1px solid #363c49;color:#fff;font-size:20px;font-weight:700}
+.dpad .ok{grid-area:2/2;margin:2%;background:#14171d;border:1px solid #363c49;color:#fff;font-size:26px;font-weight:800}
 .dpad .dp.ativo{background:transparent;color:var(--acc)}
 .dpad .ok.ativo{background:var(--acc);color:#fff}
 .apps{display:flex;flex-wrap:wrap;gap:8px}
@@ -1513,6 +1513,7 @@ document.querySelector('[data-acao="mic"]').addEventListener("click", function()
 });
 function aplicarModoMouse(){
   document.body.classList.toggle("modo-mouse", !!cfg.mouseTv);
+  if (document.body.classList.contains("modo-tv")) enviar({t:"modo", mouse:!!cfg.mouseTv});
   el("btn-modo").textContent = cfg.mouseTv ? "Modo controle" : "Modo mouse";
 }
 el("btn-modo").addEventListener("click", function(){
@@ -1546,6 +1547,7 @@ function carregarIcones(){
 }
 window.mtModo = function(tv){
   if (tv) carregarIcones();
+  if (tv) enviar({t:"modo", mouse:!!cfg.mouseTv});
   document.body.classList.toggle("modo-tv", tv);
   document.querySelector('[data-k="esc"]').textContent = tv ? "Voltar" : "Esc";
   document.querySelector('[data-k="win"]').textContent = tv ? "Início" : "Iniciar";

@@ -50,6 +50,7 @@ class TouchService : AccessibilityService() {
 
     @Volatile var conectados = 0
         private set
+    private var modoMouse = false
 
     private var largura = 1920
     private var altura = 1080
@@ -74,7 +75,7 @@ class TouchService : AccessibilityService() {
             ?.takeIf { it.isNotBlank() } ?: "TV ${Build.MODEL}"
         servidor = Servidor(this, nome,
             aoComando = { msg, con -> main.post { tratar(msg, con) } },
-            aoMudarConexoes = { n -> main.post { conectados = n; mostrarCursor(n > 0) } },
+            aoMudarConexoes = { n -> main.post { conectados = n; mostrarCursor(n > 0 && modoMouse) } },
             aoConectar = { con -> avisarAtualizacao(con) },
             icone = { nome -> iconeApp(nome) }
         ).also { it.iniciar() }
@@ -87,7 +88,7 @@ class TouchService : AccessibilityService() {
     private fun manterAdb() {
         main.postDelayed({
             val a = adb
-            if (a != null && !a.conectado && conectados > 0) a.conectar()
+            if (a != null && (!a.conectado || !a.rapido) && conectados > 0) a.conectar()
             manterAdb()
         }, 30_000L)
     }
@@ -167,7 +168,12 @@ class TouchService : AccessibilityService() {
 
     private fun tratar(msg: JSONObject, con: Servidor.Conexao) {
         when (msg.optString("t")) {
+            "modo" -> {
+                modoMouse = msg.optBoolean("mouse")
+                mostrarCursor(conectados > 0 && modoMouse)
+            }
             "m" -> {
+                modoMouse = true
                 x = (x + msg.optInt("x") * escala).coerceIn(0f, largura - 1f)
                 y = (y + msg.optInt("y") * escala).coerceIn(0f, altura - 1f)
                 mostrarCursor(true); moverCursor()
@@ -273,6 +279,19 @@ class TouchService : AccessibilityService() {
 
     private fun rolar() {
         if (rolando) return
+        val a = adb
+        if (a != null && a.rapido) {
+            // roda do mouse de verdade (funciona dentro dos apps)
+            val passoRoda = 70f
+            while (abs(rolarY) >= passoRoda || abs(rolarX) >= passoRoda) {
+                val v = if (abs(rolarY) >= passoRoda) Math.signum(rolarY).toInt() else 0
+                val h = if (abs(rolarX) >= passoRoda) -Math.signum(rolarX).toInt() else 0
+                if (v != 0) rolarY -= passoRoda * v
+                if (h != 0) rolarX += passoRoda * h
+                a.rolarMouse(x.toInt(), y.toInt(), v, h)
+            }
+            return
+        }
         val passo = 60f
         if (abs(rolarY) >= passo || abs(rolarX) >= passo) {
             val vertical = abs(rolarY) >= abs(rolarX)
@@ -558,9 +577,10 @@ class TouchService : AccessibilityService() {
                     "up" -> KeyEvent.KEYCODE_DPAD_UP; "down" -> KeyEvent.KEYCODE_DPAD_DOWN
                     "left" -> KeyEvent.KEYCODE_DPAD_LEFT; else -> KeyEvent.KEYCODE_DPAD_RIGHT
                 }
-                teclaReal(codigo, n) { repeat(n) { moverFoco(k) }; som(k) }
+                teclaReal(codigo, n) { repeat(n) { moverFoco(k) } }
+                som(k)
             }
-            "ok" -> teclaReal(KeyEvent.KEYCODE_DPAD_CENTER, 1) { clicarFocado(); som("ok") }
+            "ok" -> { teclaReal(KeyEvent.KEYCODE_DPAD_CENTER, 1) { clicarFocado() }; som("ok") }
             "mic" -> abrirBusca(con)
             "config" -> abrir(Intent(Settings.ACTION_SETTINGS), con)
             "backspace" -> {

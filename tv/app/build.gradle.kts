@@ -51,4 +51,5 @@ android {
 dependencies {
     implementation("com.google.zxing:core:3.5.3")
     implementation("dev.mobile:dadb:1.2.7")
+    implementation("com.squareup.okio:okio:3.6.0")
 }
