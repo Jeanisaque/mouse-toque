@@ -9,9 +9,10 @@ Funciona com Android e iPhone, sem instalar nada no celular.
 
 PRIMEIRA VEZ
 ------------
-1. Instale o Python no PC (gratuito): https://www.python.org/downloads/
-   IMPORTANTE: na instalação, marque "Add python.exe to PATH".
-2. Deixe os arquivos desta pasta juntos, em qualquer lugar do PC.
+Na versão portátil (TouchCell-Windows.zip) não precisa instalar nada:
+é só extrair a pasta e seguir o "Como usar".
+Sem a versão portátil, instale o Python (python.org) marcando
+"Add python.exe to PATH".
 
 
 COMO USAR

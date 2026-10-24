@@ -1,0 +1,45 @@
+name: Pacote portatil para Windows
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pacote-portatil
+  cancel-in-progress: true
+
+jobs:
+  pacote:
+    runs-on: ubuntu-latest
+    env:
+      PY: "3.12.10"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Montar pacote com Python embutido
+        run: |
+          set -e
+          D="Touch Cell"
+          mkdir -p "pkg/$D/python/x64" "pkg/$D/python/x86"
+          curl -fsSL -o x64.zip "https://www.python.org/ftp/python/$PY/python-$PY-embed-amd64.zip"
+          curl -fsSL -o x86.zip "https://www.python.org/ftp/python/$PY/python-$PY-embed-win32.zip"
+          unzip -q x64.zip -d "pkg/$D/python/x64"
+          unzip -q x86.zip -d "pkg/$D/python/x86"
+          cp mouse_toque.py LEIA-ME.txt "Iniciar Touch Cell.bat" "pkg/$D/"
+          (cd pkg && zip -qr ../TouchCell-Windows.zip "$D")
+          ls -la TouchCell-Windows.zip
+
+      - name: Publicar na pagina de downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=$(python3 -c "import json;print(json.load(open('versao.json'))['versao'])")
+          gh release delete portatil -y --cleanup-tag || true
+          gh release create portatil TouchCell-Windows.zip \
+            --title "Touch Cell $VER - versao portatil para Windows" \
+            --notes "Baixe, extraia e de dois cliques em **Iniciar Touch Cell.bat**. Nao precisa instalar o Python. Criado por Isaque Andrade e Joel Andrade." \
+            --latest

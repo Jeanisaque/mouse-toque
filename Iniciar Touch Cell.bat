@@ -3,6 +3,19 @@ chcp 65001 >nul
 title Touch Cell - Criado por Isaque Andrade e Joel Andrade
 cd /d "%~dp0"
 
+rem ---- 1) Python que ja vem junto (versao portatil) ----
+set "ARQ=%PROCESSOR_ARCHITECTURE%"
+if defined PROCESSOR_ARCHITEW6432 set "ARQ=%PROCESSOR_ARCHITEW6432%"
+set "PYPORT="
+if /i "%ARQ%"=="AMD64" if exist "python\x64\python.exe" set "PYPORT=python\x64\python.exe"
+if /i "%ARQ%"=="ARM64" if exist "python\x64\python.exe" set "PYPORT=python\x64\python.exe"
+if not defined PYPORT if exist "python\x86\python.exe" set "PYPORT=python\x86\python.exe"
+if defined PYPORT (
+    "%PYPORT%" mouse_toque.py
+    goto fim
+)
+
+rem ---- 2) Python instalado no PC ----
 python --version >nul 2>&1
 if %errorlevel%==0 (
     python mouse_toque.py
@@ -15,11 +28,12 @@ if %errorlevel%==0 (
 )
 
 echo.
-echo  O Python nao esta instalado neste PC.
-echo  Vou abrir a pagina de download. Na instalacao, marque a opcao
-echo  "Add python.exe to PATH" e depois abra este arquivo de novo.
+echo  Esta pasta nao tem o Python portatil e o PC nao tem Python.
+echo  Baixe a versao portatil do Touch Cell (nao precisa instalar nada):
 echo.
-start https://www.python.org/downloads/
+echo  https://github.com/Jeanisaque/mouse-toque/releases/latest/download/TouchCell-Windows.zip
+echo.
+start https://github.com/Jeanisaque/mouse-toque/releases/latest/download/TouchCell-Windows.zip
 
 :fim
 echo.
