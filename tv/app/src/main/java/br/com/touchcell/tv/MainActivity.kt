@@ -172,7 +172,9 @@ class MainActivity : Activity() {
     private fun mostrarCompleto(servico: TouchService) {
         val a = servico.adb
         if (a != null && a.conectado) {
-            completo.text = "✓ Controle completo ativo: setas e OK funcionam dentro dos apps"
+            completo.text = "✓ Controle completo ativo: setas e OK funcionam dentro dos apps" +
+                (if (a.rapido) "" else " (modo lento)") +
+                (a.ultimoErro?.takeIf { it.startsWith("Ajudante") }?.let { "\n$it" } ?: "")
             completo.setTextColor(Color.parseColor("#2ECC71"))
             botaoCompleto.visibility = View.GONE
         } else {

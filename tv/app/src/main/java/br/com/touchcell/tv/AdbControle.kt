@@ -75,7 +75,19 @@ class AdbControle(private val ctx: Context) {
             val s = d.open("shell:CLASSPATH=${ctx.packageCodePath} app_process / br.com.touchcell.tv.Injetor")
             var linha: String?
             do { linha = s.source.readUtf8Line() } while (linha != null && linha.trim() != "pronto")
-            if (linha != null) injetor = s else { try { s.close() } catch (_: Throwable) {} }
+            if (linha != null) {
+                injetor = s
+                // lê o que o ajudante responder (erros aparecem na tela da TV)
+                Thread {
+                    try {
+                        while (true) {
+                            val l = s.source.readUtf8Line() ?: break
+                            if (l.startsWith("erro")) ultimoErro = "Ajudante: $l"
+                        }
+                    } catch (_: Throwable) {}
+                    if (injetor === s) injetor = null
+                }.apply { isDaemon = true }.start()
+            } else { try { s.close() } catch (_: Throwable) {} }
         } catch (e: Throwable) {
             injetor = null
         }
@@ -122,7 +134,7 @@ class AdbControle(private val ctx: Context) {
     fun cliqueMouse(x: Int, y: Int, senao: () -> Unit) {
         if (!conectado) { senao(); conectar(); return }
         comandos.execute {
-            if (escrever("c $x $y")) return@execute
+            if (escrever("t $x $y\nc $x $y")) return@execute
             shell("input mouse tap $x $y", senao)
         }
     }

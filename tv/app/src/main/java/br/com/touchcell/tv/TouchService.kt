@@ -244,9 +244,15 @@ class TouchService : AccessibilityService() {
     private fun temAcao(n: AccessibilityNodeInfo, id: Int) = n.actionList.any { it.id == id }
 
     private fun tocar(px: Float, py: Float) {
+        val alvo = noAlvo(px, py) { it.isClickable || temAcao(it, AccessibilityNodeInfo.ACTION_CLICK) }
+        if (alvo != null) {
+            if (alvo.isFocusable && !alvo.isFocused) alvo.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+            if (alvo.performAction(AccessibilityNodeInfo.ACTION_CLICK)) { som("ok"); return }
+        }
         val a = adb
         if (a != null && a.conectado) {
             a.cliqueMouse(px.toInt(), py.toInt()) { main.post { tocarSemAdb(px, py) } }
+            som("ok")
         } else tocarSemAdb(px, py)
     }
 
@@ -280,15 +286,19 @@ class TouchService : AccessibilityService() {
     private fun rolar() {
         if (rolando) return
         val a = adb
-        if (a != null && a.rapido) {
-            // roda do mouse de verdade (funciona dentro dos apps)
-            val passoRoda = 70f
-            while (abs(rolarY) >= passoRoda || abs(rolarX) >= passoRoda) {
-                val v = if (abs(rolarY) >= passoRoda) Math.signum(rolarY).toInt() else 0
-                val h = if (abs(rolarX) >= passoRoda) -Math.signum(rolarX).toInt() else 0
-                if (v != 0) rolarY -= passoRoda * v
-                if (h != 0) rolarX += passoRoda * h
-                a.rolarMouse(x.toInt(), y.toInt(), v, h)
+        if (a != null && a.conectado) {
+            // rolar = setas de verdade (funcionam em qualquer app)
+            val passoSeta = 90f
+            while (abs(rolarY) >= passoSeta || abs(rolarX) >= passoSeta) {
+                if (abs(rolarY) >= abs(rolarX)) {
+                    val s = Math.signum(rolarY)
+                    rolarY -= passoSeta * s
+                    a.tecla(if (s > 0) KeyEvent.KEYCODE_DPAD_UP else KeyEvent.KEYCODE_DPAD_DOWN, 1) {}
+                } else {
+                    val s = Math.signum(rolarX)
+                    rolarX -= passoSeta * s
+                    a.tecla(if (s > 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT, 1) {}
+                }
             }
             return
         }

@@ -34,10 +34,12 @@ object Injetor {
                 when (p[0]) {
                     "k" -> tecla(p[1].toInt())
                     "c" -> clique(p[1].toFloat(), p[2].toFloat())
+                    "t" -> toque(p[1].toFloat(), p[2].toFloat())
                     "s" -> rolar(p[1].toFloat(), p[2].toFloat(), p[3].toFloat(), p[4].toFloat())
                 }
             } catch (e: Throwable) {
-                println("erro " + e.message)
+                println("erro " + p[0] + ": " + (e.cause?.message ?: e.message ?: e.javaClass.simpleName))
+                System.out.flush()
             }
         }
     }
@@ -67,9 +69,22 @@ object Injetor {
         return e
     }
 
+    /** Toque de dedo (tela sensível), para apps que aceitam toque. */
+    private fun toque(x: Float, y: Float) {
+        val t = SystemClock.uptimeMillis()
+        val props = MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_FINGER }
+        fun ev(acao: Int) = MotionEvent.obtain(t, SystemClock.uptimeMillis(), acao, 1, arrayOf(props),
+            arrayOf(MotionEvent.PointerCoords().apply { this.x = x; this.y = y; pressure = 1f; size = 1f }),
+            0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
+        injetar(ev(MotionEvent.ACTION_DOWN))
+        Thread.sleep(40)
+        injetar(ev(MotionEvent.ACTION_UP))
+    }
+
     private fun clique(x: Float, y: Float) {
         val t = SystemClock.uptimeMillis()
         val b = MotionEvent.BUTTON_PRIMARY
+        injetar(mouse(t, MotionEvent.ACTION_HOVER_MOVE, x, y, 0))
         injetar(mouse(t, MotionEvent.ACTION_DOWN, x, y, b))
         injetar(mouse(t, MotionEvent.ACTION_BUTTON_PRESS, x, y, b, b))
         injetar(mouse(t, MotionEvent.ACTION_BUTTON_RELEASE, x, y, 0, b))
