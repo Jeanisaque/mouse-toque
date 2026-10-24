@@ -76,7 +76,7 @@ class TouchService : AccessibilityService() {
         servidor = Servidor(this, nome,
             aoComando = { msg, con -> main.post { tratar(msg, con) } },
             aoMudarConexoes = { n -> main.post { conectados = n; mostrarCursor(n > 0 && modoMouse) } },
-            aoConectar = { con -> avisarAtualizacao(con) },
+            aoConectar = { con -> avisarAtualizacao(con); con.enviar(statusDesligar().toString()) },
             icone = { nome -> iconeApp(nome) }
         ).also { it.iniciar() }
         verificarAtualizacao()
@@ -204,7 +204,8 @@ class TouchService : AccessibilityService() {
             }
             "app" -> abrirApp(msg.optString("n"), con)
             "brilho_ler", "brilho" -> con.enviar("{\"t\":\"brilho\",\"v\":null}")
-            "suspender", "cancelar_susp" -> con.enviar("{\"t\":\"susp\",\"resta\":0}")
+            "suspender" -> agendarDesligar(msg.optInt("min", 0))
+            "cancelar_susp" -> cancelarDesligar()
         }
     }
 
@@ -532,6 +533,43 @@ class TouchService : AccessibilityService() {
         val pacote = achado.activityInfo.packageName
         val i = pm.getLeanbackLaunchIntentForPackage(pacote) ?: pm.getLaunchIntentForPackage(pacote)
         if (i == null || !abrir(i, con)) avisar(con, "Não consegui abrir $nome")
+    }
+
+    // ---------------------------------------------------------------- desligar com temporizador
+
+    @Volatile private var fimDesligar = 0L
+    private val desligarAgendado = Runnable { fimDesligar = 0L; avisarDesligar(); desligarAgora() }
+    private val avisoUmMinuto = Runnable {
+        android.widget.Toast.makeText(this, "Touch Cell TV: a TV vai desligar em 1 minuto", android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    private fun statusDesligar(): JSONObject {
+        val resta = if (fimDesligar == 0L) 0 else ((fimDesligar - System.currentTimeMillis()) / 1000).coerceAtLeast(0)
+        return JSONObject().put("t", "susp").put("resta", resta)
+    }
+
+    private fun avisarDesligar() { servidor?.avisarTodos(statusDesligar()) }
+
+    private fun agendarDesligar(min: Int) {
+        main.removeCallbacks(desligarAgendado); main.removeCallbacks(avisoUmMinuto)
+        val ms = if (min <= 0) 1500L else min.coerceAtMost(600) * 60_000L
+        fimDesligar = System.currentTimeMillis() + ms
+        main.postDelayed(desligarAgendado, ms)
+        if (min >= 2) main.postDelayed(avisoUmMinuto, ms - 60_000L)
+        avisarDesligar()
+    }
+
+    private fun cancelarDesligar() {
+        main.removeCallbacks(desligarAgendado); main.removeCallbacks(avisoUmMinuto)
+        fimDesligar = 0L
+        avisarDesligar()
+    }
+
+    private fun desligarAgora() {
+        // tecla Power de verdade (Controle completo); sem ele, bloqueia/apaga a tela
+        teclaReal(KeyEvent.KEYCODE_POWER, 1) {
+            if (Build.VERSION.SDK_INT >= 28) performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
+        }
     }
 
     /** Sempre volta para a tela inicial da TV (launcher). */

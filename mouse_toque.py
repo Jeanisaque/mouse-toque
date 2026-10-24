@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado pelos irmãos Joel Andrade e Isaque Andrade"
-VERSAO = "1.11"
+VERSAO = "1.12"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -881,6 +881,14 @@ header h1{font-size:17px;margin:0;font-weight:650;flex:1;letter-spacing:.2px}
 .mini.confirmar{background:var(--err);border-color:var(--err);color:#fff}
 #susp-status{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:10px 12px;border-radius:12px;background:#2a2412;border:1px solid #5c4a17;font-size:14px}
 #susp-status[hidden]{display:none}
+#tv-desligar{display:none;padding-top:4px}
+body.modo-tv #tv-desligar{display:block}
+.tvd-outro{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;color:var(--sub)}
+.tvd-outro label{flex:1}
+.tvd-outro input{width:76px;height:44px;border-radius:10px;border:1px solid var(--borda);background:var(--pad);color:var(--txt);font-size:16px;text-align:center;-webkit-user-select:text;user-select:text}
+.tvd-outro .mini{height:44px}
+#tvd-status{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:10px 12px;border-radius:12px;background:#2a2412;border:1px solid #5c4a17;font-size:14px}
+#tvd-status[hidden]{display:none}
 #susp-mini{color:var(--warn);font-size:12px}
 body.modo-tv #btn-energia,body.modo-tv [data-pc],body.modo-tv [data-tvx],body.modo-tv .botoes{display:none}
 #tv-ctl{display:none}
@@ -1084,6 +1092,24 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
     <div id="msg-foto"></div>
     <div class="linha"><span>Transparência da foto</span><input type="range" id="c-transp" min="0" max="95" step="5"><span class="valor" id="v-transp"></span></div>
     <input type="file" id="foto-arquivo" accept="image/*" hidden>
+    <div id="tv-desligar">
+      <h3 class="subtitulo">Desligar a TV</h3>
+      <div class="susp-grade">
+        <button class="mini tvd" data-min="0" id="tvd-agora">Agora</button>
+        <button class="mini tvd" data-min="30">30 min</button>
+        <button class="mini tvd" data-min="60">1 hora</button>
+        <button class="mini tvd" data-min="120">2 horas</button>
+      </div>
+      <div class="tvd-outro">
+        <label for="tvd-min">Outro tempo (minutos)</label>
+        <input id="tvd-min" type="number" inputmode="numeric" min="1" max="600" placeholder="45">
+        <button class="mini" id="tvd-ok">Programar</button>
+      </div>
+      <div id="tvd-status" hidden>
+        <span id="tvd-texto"></span>
+        <button class="mini perigo" id="tvd-cancelar">Cancelar</button>
+      </div>
+    </div>
     <button class="ok-btn" id="fechar-config">Pronto</button>
     <div class="creditos">Touch Cell {{VERSAO}}<br>Criado pelos irmãos <b>Joel Andrade</b> e <b>Isaque Andrade</b></div>
   </div>
@@ -1461,6 +1487,11 @@ function mmss(seg){ const m = Math.floor(seg / 60), s2 = seg % 60; return (m >= 
 function mostrarSusp(){
   const resta = fimSusp ? Math.max(0, Math.round((fimSusp - Date.now()) / 1000)) : 0;
   const caixa = el("susp-status");
+  const tvCaixa = el("tvd-status");
+  if (resta > 0){
+    tvCaixa.hidden = false;
+    el("tvd-texto").textContent = resta <= 3 ? "Desligando a TV…" : "A TV vai desligar em " + mmss(resta);
+  } else tvCaixa.hidden = true;
   if (resta > 0){
     caixa.hidden = false;
     el("susp-texto").textContent = resta <= 3 ? "Suspendendo o PC…" : "O PC vai suspender em " + mmss(resta);
@@ -1485,6 +1516,33 @@ document.querySelectorAll(".susp").forEach(function(btn){
   });
 });
 el("susp-cancelar").addEventListener("click", function(){ vibrar(10); enviar({t:"cancelar_susp"}); });
+
+// desligar a TV (nos ajustes, só no modo TV)
+let tvdConfirma = 0;
+const tvdAgora = el("tvd-agora");
+function tvdResetar(){ tvdConfirma = 0; tvdAgora.textContent = "Agora"; tvdAgora.classList.remove("confirmar"); }
+document.querySelectorAll(".tvd").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    const min = parseInt(btn.dataset.min, 10);
+    if (min === 0 && !tvdConfirma){
+      tvdConfirma = Date.now();
+      tvdAgora.textContent = "Confirmar"; tvdAgora.classList.add("confirmar"); vibrar(20);
+      setTimeout(function(){ if (tvdConfirma && Date.now() - tvdConfirma > 3400) tvdResetar(); }, 3500);
+      return;
+    }
+    tvdResetar(); vibrar(15);
+    enviar({t:"suspender", min:min});
+    window.mtAviso(min === 0 ? "Desligando a TV…" : "A TV vai desligar em " + (min >= 60 && min % 60 === 0 ? (min/60) + (min === 60 ? " hora" : " horas") : min + " min"));
+  });
+});
+el("tvd-ok").addEventListener("click", function(){
+  const min = parseInt(el("tvd-min").value, 10);
+  if (!(min >= 1 && min <= 600)){ window.mtAviso("Digite de 1 a 600 minutos"); return; }
+  vibrar(15); el("tvd-min").blur();
+  enviar({t:"suspender", min:min});
+  window.mtAviso("A TV vai desligar em " + min + " min");
+});
+el("tvd-cancelar").addEventListener("click", function(){ vibrar(10); enviar({t:"cancelar_susp"}); window.mtAviso("Desligamento cancelado"); });
 
 // ---------- controles da TV (Voltar, Início, volume) ----------
 document.querySelectorAll(".tv-btn").forEach(function(btn){
