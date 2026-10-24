@@ -84,7 +84,49 @@ class ControleActivity : Activity() {
         }
         setContentView(web)
         web.loadUrl(intent.getStringExtra("url") ?: run { finish(); return })
+        avisarAtualizacao()
     }
+
+    /** Se houver versão nova do app, pergunta aqui mesmo (sem precisar voltar à lista). */
+    private fun avisarAtualizacao() {
+        Thread {
+            if (!Atualizador.verificar(this)) return@Thread
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("Versão nova do Touch Cell")
+                    .setMessage("A versão ${Atualizador.nomePublicado} está disponível. Atualizar agora?")
+                    .setPositiveButton("Atualizar") { _, _ -> atualizar() }
+                    .setNegativeButton("Depois", null)
+                    .show()
+            }
+        }.start()
+    }
+
+    private fun atualizar() {
+        if (android.os.Build.VERSION.SDK_INT >= 26 && !packageManager.canRequestPackageInstalls()) {
+            pediuPermissao = true
+            Toast.makeText(this, "Permita que o Touch Cell instale atualizações e volte aqui", Toast.LENGTH_LONG).show()
+            try {
+                startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:$packageName")))
+            } catch (_: Exception) {}
+            return
+        }
+        Toast.makeText(this, "Baixando a atualização…", Toast.LENGTH_SHORT).show()
+        Thread {
+            val ok = try { Atualizador.baixarEInstalar(this) {} } catch (e: Exception) { false }
+            if (!ok) runOnUiThread { Toast.makeText(this, "Não consegui baixar agora", Toast.LENGTH_LONG).show() }
+        }.start()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // voltou da tela de permissão: tenta de novo
+        if (android.os.Build.VERSION.SDK_INT >= 26 && Atualizador.temNova(this) && packageManager.canRequestPackageInstalls()
+            && pediuPermissao) { pediuPermissao = false; atualizar() }
+    }
+    private var pediuPermissao = false
 
     private fun iniciarVoz() {
         val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
