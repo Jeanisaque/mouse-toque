@@ -78,5 +78,5 @@ jobs:
           gh release delete tv -y --cleanup-tag || true
           gh release create tv TouchCell-TV.apk versao-tv.json \
             --title "Touch Cell TV (Android TV) 1.0.${{ github.run_number }}" \
-            --notes "Instale na TV pelo app Downloader com o link: https://github.com/Jeanisaque/mouse-toque/releases/download/tv/TouchCell-TV.apk  Depois ative em Configuracoes > Preferencias do dispositivo > Acessibilidade > Touch Cell. Criado por Isaque Andrade e Joel Andrade.  Assinatura SHA-256: $(cat assinatura.txt)" \
+            --notes "Instale na TV pelo app Downloader com o link: https://github.com/Jeanisaque/mouse-toque/releases/download/tv/TouchCell-TV.apk  Depois ative em Configuracoes > Preferencias do dispositivo > Acessibilidade > Touch Cell. Criado pelos irmãos Joel Andrade e Isaque Andrade.  Assinatura SHA-256: $(cat assinatura.txt)" \
             --latest=false

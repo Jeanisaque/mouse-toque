@@ -1,6 +1,6 @@
 # Touch Cell
 
-**Criado por Isaque Andrade e Joel Andrade**
+**Criado pelos irmãos Joel Andrade e Isaque Andrade**
 
 Transforma o celular em mouse e teclado do PC, pelo Wi-Fi. Funciona com Android e iPhone, sem instalar nada no celular.
 

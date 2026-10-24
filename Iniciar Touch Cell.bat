@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title Touch Cell - Criado por Isaque Andrade e Joel Andrade
+title Touch Cell - Criado pelos irmaos Joel Andrade e Isaque Andrade
 cd /d "%~dp0"
 
 rem O programa fica na subpasta "programa" (ou ao lado deste arquivo, nas versoes antigas)

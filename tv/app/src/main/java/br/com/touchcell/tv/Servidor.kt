@@ -123,6 +123,10 @@ class Servidor(
             }
             if (rota == "/ws" && cabecalhos["upgrade"].equals("websocket", ignoreCase = true)) {
                 websocket(s, entrada, saida, cabecalhos["sec-websocket-key"] ?: "")
+            } else if (rota == "/info") {
+                responder(saida, 200, "application/json",
+                    JSONObject().put("app", "touchcell").put("tipo", "tv").put("nome", nomeAparelho).toString())
+                s.close()
             } else if (rota == "/icone") {
                 val nome = java.net.URLDecoder.decode(
                     partes[1].substringAfter("n=", "").substringBefore("&"), "UTF-8")

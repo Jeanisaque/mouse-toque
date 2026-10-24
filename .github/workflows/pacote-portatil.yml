@@ -43,5 +43,5 @@ jobs:
           gh release delete portatil -y --cleanup-tag || true
           gh release create portatil TouchCell-Portatil.zip TouchCell-Windows.zip \
             --title "Touch Cell Portátil $VER (Windows)" \
-            --notes "Baixe o **TouchCell-Portatil.zip**, extraia e de dois cliques em **Iniciar Touch Cell.bat**. Nao precisa instalar o Python. Criado por Isaque Andrade e Joel Andrade." \
+            --notes "Baixe o **TouchCell-Portatil.zip**, extraia e de dois cliques em **Iniciar Touch Cell.bat**. Nao precisa instalar o Python. Criado pelos irmãos Joel Andrade e Isaque Andrade." \
             --latest

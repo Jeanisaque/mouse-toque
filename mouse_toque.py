@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Touch Cell — use o celular como mouse e teclado do PC.
-Criado por Isaque Andrade e Joel Andrade.
+Criado pelos irmãos Joel Andrade e Isaque Andrade.
 
 Como usar:
   1. Rode este arquivo no PC (ou dê dois cliques em "Iniciar Touch Cell.bat").
@@ -33,8 +33,8 @@ import urllib.request
 import webbrowser
 
 APP_NOME = "Touch Cell"
-CREDITOS = "Criado por Isaque Andrade e Joel Andrade"
-VERSAO = "1.10"
+CREDITOS = "Criado pelos irmãos Joel Andrade e Isaque Andrade"
+VERSAO = "1.11"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -590,6 +590,10 @@ class Atendente(socketserver.BaseRequestHandler):
             self.websocket(sock, cabecalhos, resto)
         elif rota == "/":
             self.responder(200, "text/html; charset=utf-8", PAGINA_CELULAR.replace("{{VERSAO}}", VERSAO))
+        elif rota == "/info":
+            # usado pelo app Touch Cell do celular para achar o PC na rede
+            self.responder(200, "application/json", json.dumps(
+                {"app": "touchcell", "tipo": "pc", "nome": socket.gethostname(), "versao": VERSAO}))
         elif rota == "/pc" and local:
             pagina = (PAGINA_PC.replace("{{URL}}", self.server.url)
                       .replace("{{CODIGO}}", self.server.codigo))
@@ -1064,7 +1068,7 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
   </div>
 </div>
 
-<footer>Criado por Isaque Andrade e Joel Andrade</footer>
+<footer>Criado pelos irmãos Joel Andrade e Isaque Andrade</footer>
 <div id="aviso" role="status"></div>
 
 <div class="folha" id="config">
@@ -1081,7 +1085,7 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
     <div class="linha"><span>Transparência da foto</span><input type="range" id="c-transp" min="0" max="95" step="5"><span class="valor" id="v-transp"></span></div>
     <input type="file" id="foto-arquivo" accept="image/*" hidden>
     <button class="ok-btn" id="fechar-config">Pronto</button>
-    <div class="creditos">Touch Cell {{VERSAO}}<br>Criado por <b>Isaque Andrade</b> e <b>Joel Andrade</b></div>
+    <div class="creditos">Touch Cell {{VERSAO}}<br>Criado pelos irmãos <b>Joel Andrade</b> e <b>Isaque Andrade</b></div>
   </div>
 </div>
 
@@ -1505,7 +1509,15 @@ document.querySelectorAll(".tv-btn").forEach(function(btn){
 document.querySelectorAll(".app-btn").forEach(function(btn){
   btn.addEventListener("click", function(){ vibrar(12); enviar({t:"app", n:btn.dataset.app}); });
 });
+// ganchos para o app Touch Cell do celular (microfone e botões de volume do celular)
+window.mtTecla = function(k){ enviar({t:"k", k:k}); };
+window.mtTextoFalado = function(t){
+  if (!t) return;
+  enviar({t:"txt", s:t});
+  setTimeout(function(){ enviar({t:"k", k:"enter"}); }, 400);
+};
 document.querySelector('[data-acao="mic"]').addEventListener("click", function(){
+  if (window.TouchCellApp && window.TouchCellApp.ouvir){ window.TouchCellApp.ouvir(); return; }
   // a TV abre a busca; o celular abre o teclado para ditar pelo microfone do teclado
   setTimeout(function(){
     if (!painel.classList.contains("aberto")) btnTeclado.click();
@@ -1645,7 +1657,7 @@ h1{margin:0 0 6px;font-size:26px}
     <li>Leia o QR code ou digite o endereço no navegador do celular.</li>
     <li>Dica: use "Adicionar à tela inicial" para abrir como app.</li>
   </ol>
-  <div class="creditos">Criado por <b>Isaque Andrade</b> e <b>Joel Andrade</b></div>
+  <div class="creditos">Criado pelos irmãos <b>Joel Andrade</b> e <b>Isaque Andrade</b></div>
 </div>
 <script>
 try { new QRCode(document.getElementById("qr"), {text:"{{URL}}", width:220, height:220, correctLevel:QRCode.CorrectLevel.M}); }

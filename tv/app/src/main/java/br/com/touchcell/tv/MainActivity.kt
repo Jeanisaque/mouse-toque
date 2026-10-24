@@ -88,7 +88,7 @@ class MainActivity : Activity() {
             setOnClickListener { abrirPermissaoInstalar() }
         }
         val creditos = rotulo(14f, Color.parseColor("#8B93A4")).apply {
-            text = "Criado por Isaque Andrade e Joel Andrade"
+            text = "Criado pelos irmãos Joel Andrade e Isaque Andrade"
             setPadding(0, dp(18), 0, 0)
         }
         raiz.addView(titulo); raiz.addView(texto); raiz.addView(qr)

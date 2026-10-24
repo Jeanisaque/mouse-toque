@@ -1,0 +1,71 @@
+name: Apps de celular (Android)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "celular/**"
+      - ".github/workflows/app-celular.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: app-celular
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Chave de assinatura
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/touchcell.jks"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/touchcell.jks" >> "$GITHUB_ENV"
+          fi
+
+      - name: Gerar os APKs (PC e TV)
+        working-directory: celular
+        env:
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: "1.0.${{ github.run_number }}"
+        run: |
+          if [ -n "$KEYSTORE_FILE" ]; then
+            gradle --no-daemon assemblePcRelease assembleTvRelease
+            cp app/build/outputs/apk/pc/release/app-pc-release.apk ../TouchCell-Celular-PC.apk
+            cp app/build/outputs/apk/tv/release/app-tv-release.apk ../TouchCell-Celular-TV.apk
+          else
+            gradle --no-daemon assemblePcDebug assembleTvDebug
+            cp app/build/outputs/apk/pc/debug/app-pc-debug.apk ../TouchCell-Celular-PC.apk
+            cp app/build/outputs/apk/tv/debug/app-tv-debug.apk ../TouchCell-Celular-TV.apk
+          fi
+          AS=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          "$AS" verify --print-certs ../TouchCell-Celular-PC.apk | grep -m1 "SHA-256" | sed 's/.*: //' > ../assinatura.txt || true
+          ls -la ../TouchCell-Celular-*.apk
+
+      - name: Publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '{"versionCode": %s, "versionName": "1.0.%s"}\n' "${{ github.run_number }}" "${{ github.run_number }}" > versao-celular.json
+          gh release delete celular -y --cleanup-tag || true
+          gh release create celular TouchCell-Celular-PC.apk TouchCell-Celular-TV.apk versao-celular.json \
+            --title "Touch Cell para celular 1.0.${{ github.run_number }}" \
+            --notes "Touch Cell PC: https://github.com/Jeanisaque/mouse-toque/releases/download/celular/TouchCell-Celular-PC.apk  |  Touch Cell TV: https://github.com/Jeanisaque/mouse-toque/releases/download/celular/TouchCell-Celular-TV.apk  |  Criado pelos irmãos Joel Andrade e Isaque Andrade.  Assinatura SHA-256: $(cat assinatura.txt)" \
+            --latest=false
