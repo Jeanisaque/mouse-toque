@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Mouse Toque — use o celular como mouse e teclado do PC.
+Touch Cell — use o celular como mouse e teclado do PC.
 Criado por Isaque Andrade e Joel Andrade.
 
 Como usar:
-  1. Rode este arquivo no PC (ou dê dois cliques em "Iniciar Mouse Toque.bat").
+  1. Rode este arquivo no PC (ou dê dois cliques em "Iniciar Touch Cell.bat").
   2. No celular, conectado ao MESMO Wi-Fi, abra o endereço que aparecer
      (ou leia o QR code que abre no navegador do PC).
   3. Pronto: a tela do celular vira touchpad.
@@ -32,9 +32,9 @@ import time
 import urllib.request
 import webbrowser
 
-APP_NOME = "Mouse Toque"
+APP_NOME = "Touch Cell"
 CREDITOS = "Criado por Isaque Andrade e Joel Andrade"
-VERSAO = "1.4"
+VERSAO = "1.5"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -718,7 +718,7 @@ def _versao_tupla(v):
 
 def _baixar(nome, limite=4):
     url = URL_ATUALIZACAO + nome + "?t=" + str(int(time.time()))
-    req = urllib.request.Request(url, headers={"User-Agent": "MouseToque/" + VERSAO,
+    req = urllib.request.Request(url, headers={"User-Agent": "TouchCell/" + VERSAO,
                                                "Cache-Control": "no-cache"})
     with urllib.request.urlopen(req, timeout=limite) as r:
         return r.read()
@@ -841,7 +841,7 @@ PAGINA_CELULAR = r"""<!doctype html>
 <meta name="theme-color" content="#0f1115">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Mouse Toque</title>
+<title>Touch Cell</title>
 <style>
 :root{--bg:#0f1115;--pad:#171a21;--pad2:#1f232c;--borda:#2b303b;--txt:#e9ebf1;--sub:#8b93a4;--acc:#4f8cff;--ok:#2ecc71;--err:#ff5a5a;--warn:#f5b041}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -922,7 +922,7 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
 </head>
 <body>
 <header>
-  <h1>Mouse Toque</h1>
+  <h1>Touch Cell</h1>
   <div class="status"><span class="dot" id="dot"></span><span id="status-txt">Conectando…</span></div>
   <button class="icone" id="sincronizar" aria-label="Sincronizar">⟳</button>
   <button class="icone" id="abrir-config" aria-label="Ajustes">⚙︎</button>
@@ -991,7 +991,7 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
     <div class="linha"><span>Transparência da foto</span><input type="range" id="c-transp" min="0" max="95" step="5"><span class="valor" id="v-transp"></span></div>
     <input type="file" id="foto-arquivo" accept="image/*" hidden>
     <button class="ok-btn" id="fechar-config">Pronto</button>
-    <div class="creditos">Mouse Toque {{VERSAO}}<br>Criado por <b>Isaque Andrade</b> e <b>Joel Andrade</b></div>
+    <div class="creditos">Touch Cell {{VERSAO}}<br>Criado por <b>Isaque Andrade</b> e <b>Joel Andrade</b></div>
   </div>
 </div>
 
@@ -1442,7 +1442,7 @@ PAGINA_PC = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mouse Toque</title>
+<title>Touch Cell</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{--bg:#0f1115;--card:#171a21;--borda:#2b303b;--txt:#e9ebf1;--sub:#8b93a4;--acc:#4f8cff;--ok:#2ecc71}
@@ -1465,7 +1465,7 @@ h1{margin:0 0 6px;font-size:26px}
 </head>
 <body>
 <div class="card">
-  <h1>Mouse Toque</h1>
+  <h1>Touch Cell</h1>
   <p class="sub">Aponte a câmera do celular para o código</p>
   <div id="qr"></div>
   <div class="url">{{URL}}</div>

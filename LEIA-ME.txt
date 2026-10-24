@@ -1,5 +1,5 @@
 ==========================================================
-  MOUSE TOQUE 1.4
+  TOUCH CELL 1.5
   Criado por Isaque Andrade e Joel Andrade
 ==========================================================
 
@@ -16,7 +16,7 @@ PRIMEIRA VEZ
 
 COMO USAR
 ---------
-1. Dê dois cliques em "Iniciar Mouse Toque.bat".
+1. Dê dois cliques em "Iniciar Touch Cell.bat".
 2. Se o Windows perguntar sobre o Firewall, marque "Redes privadas"
    e clique em Permitir.
 3. Abre uma página no PC com um QR code. Leia com a câmera do

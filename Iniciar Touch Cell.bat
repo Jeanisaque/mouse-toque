@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title Mouse Toque - Criado por Isaque Andrade e Joel Andrade
+title Touch Cell - Criado por Isaque Andrade e Joel Andrade
 cd /d "%~dp0"
 
 python --version >nul 2>&1
