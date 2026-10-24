@@ -66,6 +66,9 @@ jobs:
             cp app/build/outputs/apk/debug/app-debug.apk ../TouchCell-TV.apk
           fi
           ls -la ../TouchCell-TV.apk
+          AS=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          "$AS" verify --print-certs ../TouchCell-TV.apk | grep -m1 "SHA-256" | sed 's/.*: //' > ../assinatura.txt || true
+          echo "Assinatura: $(cat ../assinatura.txt)"
 
       - name: Publicar
         env:
@@ -75,5 +78,5 @@ jobs:
           gh release delete tv -y --cleanup-tag || true
           gh release create tv TouchCell-TV.apk versao-tv.json \
             --title "Touch Cell TV (Android TV) 1.0.${{ github.run_number }}" \
-            --notes "Instale na TV pelo app Downloader com o link: https://github.com/Jeanisaque/mouse-toque/releases/download/tv/TouchCell-TV.apk  Depois ative em Configuracoes > Preferencias do dispositivo > Acessibilidade > Touch Cell. Criado por Isaque Andrade e Joel Andrade." \
+            --notes "Instale na TV pelo app Downloader com o link: https://github.com/Jeanisaque/mouse-toque/releases/download/tv/TouchCell-TV.apk  Depois ative em Configuracoes > Preferencias do dispositivo > Acessibilidade > Touch Cell. Criado por Isaque Andrade e Joel Andrade.  Assinatura SHA-256: $(cat assinatura.txt)" \
             --latest=false
