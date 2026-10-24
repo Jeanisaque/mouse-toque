@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado por Isaque Andrade e Joel Andrade"
-VERSAO = "1.5"
+VERSAO = "1.6"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -878,6 +878,9 @@ header h1{font-size:17px;margin:0;font-weight:650;flex:1;letter-spacing:.2px}
 #susp-status{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:10px 12px;border-radius:12px;background:#2a2412;border:1px solid #5c4a17;font-size:14px}
 #susp-status[hidden]{display:none}
 #susp-mini{color:var(--warn);font-size:12px}
+body.modo-tv #btn-energia,body.modo-tv [data-pc]{display:none}
+#aviso{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 90px);transform:translateX(-50%);background:#2a2f3a;color:var(--txt);border:1px solid var(--borda);padding:10px 16px;border-radius:12px;font-size:14px;z-index:20;max-width:90vw;text-align:center;opacity:0;transition:opacity .3s;pointer-events:none}
+#aviso.mostrar{opacity:1}
 #dica{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:var(--sub);font-size:13px;text-align:center;pointer-events:none;transition:opacity .8s;padding:20px;line-height:1.45}
 #dica b{color:var(--txt);font-size:15px;font-weight:600;margin-bottom:4px}
 #dica.some{opacity:0}
@@ -953,20 +956,20 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
   <input id="digitar" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" placeholder="Toque aqui e digite no PC">
   <div class="teclas">
     <button data-k="esc">Esc</button>
-    <button data-k="tab">Tab</button>
-    <button data-k="up">↑</button>
+    <button data-k="tab" data-pc>Tab</button>
+    <button data-k="up" data-pc>↑</button>
     <button data-k="backspace">⌫</button>
     <button data-k="enter">Enter</button>
-    <button data-k="ctrl+c">Copiar</button>
-    <button data-k="left">←</button>
-    <button data-k="down">↓</button>
-    <button data-k="right">→</button>
-    <button data-k="ctrl+v">Colar</button>
-    <button data-k="ctrl+z">Desfazer</button>
-    <button data-k="alt+tab">Alt+Tab</button>
+    <button data-k="ctrl+c" data-pc>Copiar</button>
+    <button data-k="left" data-pc>←</button>
+    <button data-k="down" data-pc>↓</button>
+    <button data-k="right" data-pc>→</button>
+    <button data-k="ctrl+v" data-pc>Colar</button>
+    <button data-k="ctrl+z" data-pc>Desfazer</button>
+    <button data-k="alt+tab" data-pc>Alt+Tab</button>
     <button data-k="win">Iniciar</button>
-    <button data-k="delete">Del</button>
-    <button data-k="f11">Tela cheia</button>
+    <button data-k="delete" data-pc>Del</button>
+    <button data-k="f11" data-pc>Tela cheia</button>
     <button data-k="voldown">Vol −</button>
     <button data-k="mute">Mudo</button>
     <button data-k="volup">Vol +</button>
@@ -976,6 +979,7 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
 </div>
 
 <footer>Criado por Isaque Andrade e Joel Andrade</footer>
+<div id="aviso" role="status"></div>
 
 <div class="folha" id="config">
   <div class="cartao">
@@ -1066,7 +1070,8 @@ function conectar(){
     if (este !== ws) return;
     let m; try{ m = JSON.parse(e.data); }catch(_){ return; }
     ultimaResposta = Date.now();
-    if (m.t === "ok"){ pronto = true; status("ok", m.pc ? "Conectado a " + m.pc : "Conectado"); if (window.mtSusp) window.mtSusp(m.susp || 0); }
+    if (m.t === "ok"){ pronto = true; status("ok", m.pc ? "Conectado a " + m.pc : "Conectado"); if (window.mtSusp) window.mtSusp(m.susp || 0); if (window.mtModo) window.mtModo(!!m.tv); }
+    else if (m.t === "aviso"){ if (window.mtAviso) window.mtAviso(m.s); }
     else if (m.t === "brilho"){ if (window.mtBrilho) window.mtBrilho(m.v); }
     else if (m.t === "susp"){ if (window.mtSusp) window.mtSusp(m.resta || 0, m.agora); }
     else if (m.t === "erro"){ pronto = false; bloqueado = true; gravar("codigo", ""); codigo = ""; pedirCodigo("Código incorreto. Confira na tela do PC."); }
@@ -1390,6 +1395,24 @@ document.querySelectorAll(".susp").forEach(function(btn){
   });
 });
 el("susp-cancelar").addEventListener("click", function(){ vibrar(10); enviar({t:"cancelar_susp"}); });
+
+// ---------- modo TV e avisos ----------
+let timerAviso = null;
+window.mtAviso = function(txt){
+  const a = el("aviso"); a.textContent = txt; a.classList.add("mostrar");
+  clearTimeout(timerAviso); timerAviso = setTimeout(function(){ a.classList.remove("mostrar"); }, 2600);
+};
+const dicaOriginal = el("dica").innerHTML;
+window.mtModo = function(tv){
+  document.body.classList.toggle("modo-tv", tv);
+  document.querySelector('[data-k="esc"]').textContent = tv ? "Voltar" : "Esc";
+  document.querySelector('[data-k="win"]').textContent = tv ? "Início" : "Iniciar";
+  document.querySelector('[data-b="r"]').textContent = tv ? "Voltar" : "Direito";
+  document.querySelector('[data-b="m"]').textContent = tv ? "Início" : "Meio";
+  el("dica").innerHTML = tv
+    ? "<b>Deslize para mover o cursor da TV</b>Toque = clique &nbsp;•&nbsp; 2 dedos tocando = Voltar<br>2 dedos deslizando = rolar<br>Toque duplo e segure = arrastar"
+    : dicaOriginal;
+};
 
 // ---------- tela do código ----------
 const folhaCod = el("codigo"), codInput = el("cod-input"), codMsg = el("cod-msg");

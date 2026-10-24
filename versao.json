@@ -1,8 +1,7 @@
 {
-  "versao": "1.5",
+  "versao": "1.6",
   "novidades": [
-    "Novo nome: Touch Cell",
-    "Controle de brilho da tela pelo celular",
-    "Botão para suspender o PC: agora ou com timer"
+    "Pasta mais organizada: o programa fica na subpasta \"programa\"",
+    "Preparação para o Touch Cell da TV"
   ]
 }

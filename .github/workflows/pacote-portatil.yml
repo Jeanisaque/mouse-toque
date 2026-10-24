@@ -24,12 +24,13 @@ jobs:
         run: |
           set -e
           D="Touch Cell Portátil"
-          mkdir -p "pkg/$D/python/x64" "pkg/$D/python/x86"
+          mkdir -p "pkg/$D/programa/python/x64" "pkg/$D/programa/python/x86"
           curl -fsSL -o x64.zip "https://www.python.org/ftp/python/$PY/python-$PY-embed-amd64.zip"
           curl -fsSL -o x86.zip "https://www.python.org/ftp/python/$PY/python-$PY-embed-win32.zip"
-          unzip -q x64.zip -d "pkg/$D/python/x64"
-          unzip -q x86.zip -d "pkg/$D/python/x86"
-          cp mouse_toque.py LEIA-ME.txt "Iniciar Touch Cell.bat" "pkg/$D/"
+          unzip -q x64.zip -d "pkg/$D/programa/python/x64"
+          unzip -q x86.zip -d "pkg/$D/programa/python/x86"
+          cp mouse_toque.py "pkg/$D/programa/"
+          cp LEIA-ME.txt "Iniciar Touch Cell.bat" "pkg/$D/"
           python3 -c "import zipfile,os;z=zipfile.ZipFile('TouchCell-Portatil.zip','w',zipfile.ZIP_DEFLATED);[z.write(os.path.join(r,f),os.path.relpath(os.path.join(r,f),'pkg')) for r,_,fs in os.walk('pkg') for f in fs];z.close()"
           cp TouchCell-Portatil.zip TouchCell-Windows.zip   # nome antigo, para links já enviados
           ls -la TouchCell-Portatil.zip

@@ -66,5 +66,5 @@ PROBLEMAS?
   Firewall permitiu o programa. Na rede do Windows, deixe a
   conexão como "Rede privada".
 - Pede código: é o número de 4 dígitos que aparece na janela do PC.
-- Para trocar o código: abra o Prompt na pasta e rode
+- Para trocar o código: abra o Prompt na pasta "programa" e rode
       python mouse_toque.py --novo-codigo
