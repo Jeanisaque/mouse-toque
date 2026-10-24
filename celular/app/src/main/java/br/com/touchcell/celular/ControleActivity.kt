@@ -9,7 +9,10 @@ import android.speech.RecognizerIntent
 import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
+import android.net.Uri
 import android.webkit.JavascriptInterface
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -26,6 +29,8 @@ class ControleActivity : Activity() {
 
     private lateinit var web: WebView
     private val pedidoVoz = 7
+    private val pedidoFoto = 8
+    private var esperandoFoto: ValueCallback<Array<Uri>>? = null
 
     inner class Ponte {
         @JavascriptInterface
@@ -48,6 +53,25 @@ class ControleActivity : Activity() {
             isHapticFeedbackEnabled = true
             overScrollMode = View.OVER_SCROLL_NEVER
             addJavascriptInterface(Ponte(), "TouchCellApp")
+            // abre a galeria quando a página pede uma foto (foto de fundo do touchpad)
+            webChromeClient = object : WebChromeClient() {
+                override fun onShowFileChooser(v: WebView, callback: ValueCallback<Array<Uri>>,
+                                               params: FileChooserParams): Boolean {
+                    esperandoFoto?.onReceiveValue(null)
+                    esperandoFoto = callback
+                    val galeria = Intent(Intent.ACTION_GET_CONTENT)
+                        .addCategory(Intent.CATEGORY_OPENABLE)
+                        .setType("image/*")
+                    return try {
+                        @Suppress("DEPRECATION")
+                        startActivityForResult(Intent.createChooser(galeria, "Escolha uma foto"), pedidoFoto)
+                        true
+                    } catch (e: Exception) {
+                        esperandoFoto = null
+                        false
+                    }
+                }
+            }
             webViewClient = object : WebViewClient() {
                 override fun onReceivedError(v: WebView, req: WebResourceRequest, erro: WebResourceError) {
                     if (req.isForMainFrame) {
@@ -79,6 +103,12 @@ class ControleActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == pedidoFoto) {
+            val uri = if (resultCode == RESULT_OK) data?.data else null
+            esperandoFoto?.onReceiveValue(if (uri != null) arrayOf(uri) else null)
+            esperandoFoto = null
+            return
+        }
         if (requestCode != pedidoVoz || resultCode != RESULT_OK) return
         val falado = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull() ?: return
         web.evaluateJavascript("window.mtTextoFalado && window.mtTextoFalado(${JSONObject.quote(falado)})", null)
