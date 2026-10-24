@@ -9,9 +9,9 @@ Funciona com Android e iPhone, sem instalar nada no celular.
 
 PRIMEIRA VEZ
 ------------
-Na versão portátil (TouchCell-Windows.zip) não precisa instalar nada:
+No Touch Cell Portátil (TouchCell-Portatil.zip) não precisa instalar nada:
 é só extrair a pasta e seguir o "Como usar".
-Sem a versão portátil, instale o Python (python.org) marcando
+Sem o Touch Cell Portátil, instale o Python (python.org) marcando
 "Add python.exe to PATH".
 
 

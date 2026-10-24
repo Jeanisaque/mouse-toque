@@ -23,15 +23,16 @@ jobs:
       - name: Montar pacote com Python embutido
         run: |
           set -e
-          D="Touch Cell"
+          D="Touch Cell Portátil"
           mkdir -p "pkg/$D/python/x64" "pkg/$D/python/x86"
           curl -fsSL -o x64.zip "https://www.python.org/ftp/python/$PY/python-$PY-embed-amd64.zip"
           curl -fsSL -o x86.zip "https://www.python.org/ftp/python/$PY/python-$PY-embed-win32.zip"
           unzip -q x64.zip -d "pkg/$D/python/x64"
           unzip -q x86.zip -d "pkg/$D/python/x86"
           cp mouse_toque.py LEIA-ME.txt "Iniciar Touch Cell.bat" "pkg/$D/"
-          (cd pkg && zip -qr ../TouchCell-Windows.zip "$D")
-          ls -la TouchCell-Windows.zip
+          python3 -c "import zipfile,os;z=zipfile.ZipFile('TouchCell-Portatil.zip','w',zipfile.ZIP_DEFLATED);[z.write(os.path.join(r,f),os.path.relpath(os.path.join(r,f),'pkg')) for r,_,fs in os.walk('pkg') for f in fs];z.close()"
+          cp TouchCell-Portatil.zip TouchCell-Windows.zip   # nome antigo, para links já enviados
+          ls -la TouchCell-Portatil.zip
 
       - name: Publicar na pagina de downloads
         env:
@@ -39,7 +40,7 @@ jobs:
         run: |
           VER=$(python3 -c "import json;print(json.load(open('versao.json'))['versao'])")
           gh release delete portatil -y --cleanup-tag || true
-          gh release create portatil TouchCell-Windows.zip \
-            --title "Touch Cell $VER - versao portatil para Windows" \
-            --notes "Baixe, extraia e de dois cliques em **Iniciar Touch Cell.bat**. Nao precisa instalar o Python. Criado por Isaque Andrade e Joel Andrade." \
+          gh release create portatil TouchCell-Portatil.zip TouchCell-Windows.zip \
+            --title "Touch Cell Portátil $VER (Windows)" \
+            --notes "Baixe o **TouchCell-Portatil.zip**, extraia e de dois cliques em **Iniciar Touch Cell.bat**. Nao precisa instalar o Python. Criado por Isaque Andrade e Joel Andrade." \
             --latest

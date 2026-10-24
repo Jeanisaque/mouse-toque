@@ -6,7 +6,7 @@ Transforma o celular em mouse e teclado do PC, pelo Wi-Fi. Funciona com Android 
 
 ## Como usar
 
-1. **[Baixe a versão portátil](https://github.com/Jeanisaque/mouse-toque/releases/latest/download/TouchCell-Windows.zip)**: já vem com o Python, não precisa instalar nada.
+1. **[Baixe o Touch Cell Portátil](https://github.com/Jeanisaque/mouse-toque/releases/latest/download/TouchCell-Portatil.zip)**: já vem com o Python, não precisa instalar nada.
 2. Extraia o zip e dê dois cliques em **Iniciar Touch Cell.bat**.
 3. Se o Windows perguntar sobre o Firewall, clique em **Permitir**.
 4. Leia o QR code com o celular, no mesmo Wi-Fi do PC.

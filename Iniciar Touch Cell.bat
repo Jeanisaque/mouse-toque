@@ -29,11 +29,11 @@ if %errorlevel%==0 (
 
 echo.
 echo  Esta pasta nao tem o Python portatil e o PC nao tem Python.
-echo  Baixe a versao portatil do Touch Cell (nao precisa instalar nada):
+echo  Baixe o Touch Cell Portatil (nao precisa instalar nada):
 echo.
-echo  https://github.com/Jeanisaque/mouse-toque/releases/latest/download/TouchCell-Windows.zip
+echo  https://github.com/Jeanisaque/mouse-toque/releases/latest/download/TouchCell-Portatil.zip
 echo.
-start https://github.com/Jeanisaque/mouse-toque/releases/latest/download/TouchCell-Windows.zip
+start https://github.com/Jeanisaque/mouse-toque/releases/latest/download/TouchCell-Portatil.zip
 
 :fim
 echo.
