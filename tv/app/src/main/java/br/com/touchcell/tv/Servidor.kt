@@ -25,6 +25,7 @@ class Servidor(
     private val nomeAparelho: String,
     private val aoComando: (JSONObject, Conexao) -> Unit,
     private val aoMudarConexoes: (Int) -> Unit,
+    private val aoConectar: (Conexao) -> Unit = {},
 ) {
     companion object {
         const val PORTA_PADRAO = 8765
@@ -166,6 +167,7 @@ class Servidor(
                         conexoes.add(con)
                         aoMudarConexoes(conexoes.size)
                         con.enviar(JSONObject().put("t", "ok").put("pc", nomeAparelho).put("tv", true).put("susp", 0).toString())
+                        aoConectar(con)
                     } else {
                         con.enviar("{\"t\":\"erro\"}")
                         break

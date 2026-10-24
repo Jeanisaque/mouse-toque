@@ -3,6 +3,7 @@ package br.com.touchcell.tv
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.Context
+import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -71,8 +72,23 @@ class TouchService : AccessibilityService() {
             ?.takeIf { it.isNotBlank() } ?: "TV ${Build.MODEL}"
         servidor = Servidor(this, nome,
             aoComando = { msg, con -> main.post { tratar(msg, con) } },
-            aoMudarConexoes = { n -> main.post { conectados = n; mostrarCursor(n > 0) } }
+            aoMudarConexoes = { n -> main.post { conectados = n; mostrarCursor(n > 0) } },
+            aoConectar = { con -> avisarAtualizacao(con) }
         ).also { it.iniciar() }
+        verificarAtualizacao()
+    }
+
+    private fun verificarAtualizacao() {
+        Thread {
+            Atualizador.verificar(this)
+            main.postDelayed({ verificarAtualizacao() }, 6 * 60 * 60 * 1000L)   // de 6 em 6 horas
+        }.start()
+    }
+
+    private fun avisarAtualizacao(con: Servidor.Conexao) {
+        if (Atualizador.temNova(this)) {
+            avisar(con, "Tem versão nova do Touch Cell para a TV: abra o app na TV para atualizar")
+        }
     }
 
     override fun onDestroy() {
@@ -141,7 +157,7 @@ class TouchService : AccessibilityService() {
             }
             "c" -> when (msg.optString("b", "l")) {
                 "r" -> performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
-                "m" -> performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+                "m" -> irParaInicio()
                 else -> tocar(x, y)
             }
             "d" -> if (msg.optString("b", "l") == "l") inicioArrasto = Pair(x, y)
@@ -301,6 +317,18 @@ class TouchService : AccessibilityService() {
         definirTexto(n, textoAtual(n) + texto)
     }
 
+    /** Sempre volta para a tela inicial da TV (launcher). */
+    private fun irParaInicio() {
+        try {
+            val i = Intent(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_HOME)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+            startActivity(i)
+        } catch (e: Exception) {
+            performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+        }
+    }
+
     private fun midia(codigo: Int) {
         val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val t = SystemClock.uptimeMillis()
@@ -316,7 +344,7 @@ class TouchService : AccessibilityService() {
     private fun tecla(k: String, n: Int, con: Servidor.Conexao) {
         when (k) {
             "esc" -> performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
-            "win" -> performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
+            "win" -> irParaInicio()
             "backspace" -> {
                 val campo = campoFocado()
                 if (campo != null) definirTexto(campo, textoAtual(campo).dropLast(n))

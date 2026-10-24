@@ -2,6 +2,8 @@ package br.com.touchcell.tv
 
 import android.app.Activity
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Typeface
@@ -33,7 +35,10 @@ class MainActivity : Activity() {
     private lateinit var endereco: TextView
     private lateinit var estado: TextView
     private lateinit var botao: Button
+    private lateinit var aviso: TextView
+    private lateinit var botaoPermitir: Button
     private var urlAtual = ""
+    @Volatile private var atualizando = false
 
     private val atualizar = object : Runnable {
         override fun run() { mostrar(); handler.postDelayed(this, 2000) }
@@ -69,16 +74,74 @@ class MainActivity : Activity() {
             text = "Abrir configurações de Acessibilidade"
             setOnClickListener { abrirAcessibilidade() }
         }
+        aviso = rotulo(16f, Color.parseColor("#8FB4FF")).apply { setPadding(0, dp(10), 0, 0); visibility = View.GONE }
+        botaoPermitir = Button(this).apply {
+            text = "Permitir atualizações automáticas"
+            visibility = View.GONE
+            setOnClickListener { abrirPermissaoInstalar() }
+        }
         val creditos = rotulo(14f, Color.parseColor("#8B93A4")).apply {
             text = "Criado por Isaque Andrade e Joel Andrade"
             setPadding(0, dp(18), 0, 0)
         }
         raiz.addView(titulo); raiz.addView(texto); raiz.addView(qr)
-        raiz.addView(endereco); raiz.addView(estado); raiz.addView(botao); raiz.addView(creditos)
+        raiz.addView(endereco); raiz.addView(estado); raiz.addView(botao)
+        raiz.addView(aviso); raiz.addView(botaoPermitir); raiz.addView(creditos)
         setContentView(raiz)
     }
 
-    override fun onResume() { super.onResume(); handler.post(atualizar) }
+    override fun onResume() {
+        super.onResume()
+        handler.post(atualizar)
+        procurarAtualizacao()
+    }
+
+    // ---------------------------------------------------------------- atualização
+
+    private fun podeInstalar() = Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls()
+
+    private fun abrirPermissaoInstalar() {
+        try {
+            startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+        } catch (e: Exception) {
+            try { startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) } catch (_: Exception) {}
+        }
+    }
+
+    private fun procurarAtualizacao() {
+        if (atualizando) return
+        Thread {
+            if (!Atualizador.verificar(this)) return@Thread
+            runOnUiThread {
+                aviso.visibility = View.VISIBLE
+                if (!podeInstalar()) {
+                    aviso.text = "Versão nova disponível (${Atualizador.nomePublicado}). " +
+                        "Permita uma vez que o Touch Cell instale atualizações:"
+                    botaoPermitir.visibility = View.VISIBLE
+                    botaoPermitir.requestFocus()
+                } else {
+                    botaoPermitir.visibility = View.GONE
+                    instalarAtualizacao()
+                }
+            }
+        }.start()
+    }
+
+    private fun instalarAtualizacao() {
+        if (atualizando) return
+        atualizando = true
+        aviso.text = "Baixando a versão ${Atualizador.nomePublicado}…"
+        Thread {
+            val ok = try {
+                Atualizador.baixarEInstalar(this) { pct -> runOnUiThread { aviso.text = "Baixando a versão ${Atualizador.nomePublicado}… $pct%" } }
+            } catch (e: Exception) { false }
+            runOnUiThread {
+                aviso.text = if (ok) "Confirme a instalação na tela da TV (clique em Atualizar)."
+                    else "Não consegui baixar a atualização. Tento de novo da próxima vez."
+                atualizando = false
+            }
+        }.start()
+    }
     override fun onPause() { handler.removeCallbacks(atualizar); super.onPause() }
 
     private fun abrirAcessibilidade() {

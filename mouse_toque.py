@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado por Isaque Andrade e Joel Andrade"
-VERSAO = "1.6"
+VERSAO = "1.7"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -878,7 +878,20 @@ header h1{font-size:17px;margin:0;font-weight:650;flex:1;letter-spacing:.2px}
 #susp-status{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:10px 12px;border-radius:12px;background:#2a2412;border:1px solid #5c4a17;font-size:14px}
 #susp-status[hidden]{display:none}
 #susp-mini{color:var(--warn);font-size:12px}
-body.modo-tv #btn-energia,body.modo-tv [data-pc]{display:none}
+body.modo-tv #btn-energia,body.modo-tv [data-pc],body.modo-tv [data-tvx],body.modo-tv .botoes{display:none}
+#tv-ctl{display:none}
+body.modo-tv #tv-ctl{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+body.modo-tv.digitando #tv-ctl{display:none}
+.tv-linha1{display:grid;grid-template-columns:2fr 1fr;gap:8px}
+.tv-linha2{display:grid;grid-template-columns:3fr 1fr;gap:8px}
+.tv-btn{height:56px;background:var(--pad2);border:1px solid var(--borda);border-radius:14px;font-size:15px;touch-action:none}
+.tv-linha1 .tv-btn{height:72px;font-size:17px;font-weight:600}
+.tv-voltar{background:#1d2a44;border-color:#2f4570;font-size:20px !important}
+.vol-grupo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--borda);border-radius:14px;overflow:hidden}
+.vol-grupo .tv-btn{border:0;border-radius:0;border-right:1px solid var(--borda)}
+.vol-grupo .tv-btn:last-child{border-right:0}
+.tv-btn.ativo{background:var(--acc);border-color:var(--acc);color:#fff}
+.tv-linha2>.tv-btn{font-size:22px}
 #aviso{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 90px);transform:translateX(-50%);background:#2a2f3a;color:var(--txt);border:1px solid var(--borda);padding:10px 16px;border-radius:12px;font-size:14px;z-index:20;max-width:90vw;text-align:center;opacity:0;transition:opacity .3s;pointer-events:none}
 #aviso.mostrar{opacity:1}
 #dica{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:var(--sub);font-size:13px;text-align:center;pointer-events:none;transition:opacity .8s;padding:20px;line-height:1.45}
@@ -947,6 +960,21 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
   <button data-b="r">Direito</button>
 </div>
 
+<div id="tv-ctl">
+  <div class="tv-linha1">
+    <button class="tv-btn tv-voltar" data-acao="esc">← Voltar</button>
+    <button class="tv-btn" data-acao="win">⌂ Início</button>
+  </div>
+  <div class="tv-linha2">
+    <div class="vol-grupo" role="group" aria-label="Volume">
+      <button class="tv-btn" data-acao="voldown" data-repete aria-label="Diminuir volume">Vol −</button>
+      <button class="tv-btn" data-acao="mute">Mudo</button>
+      <button class="tv-btn" data-acao="volup" data-repete aria-label="Aumentar volume">Vol +</button>
+    </div>
+    <button class="tv-btn" data-acao="playpause" aria-label="Tocar ou pausar">⏯︎</button>
+  </div>
+</div>
+
 <div class="barra">
   <button id="btn-teclado">⌨︎ Teclado</button>
   <button id="btn-energia">☀︎ Brilho e energia <span id="susp-mini"></span></button>
@@ -955,7 +983,7 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
 <div id="teclado">
   <input id="digitar" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" placeholder="Toque aqui e digite no PC">
   <div class="teclas">
-    <button data-k="esc">Esc</button>
+    <button data-k="esc" data-tvx>Esc</button>
     <button data-k="tab" data-pc>Tab</button>
     <button data-k="up" data-pc>↑</button>
     <button data-k="backspace">⌫</button>
@@ -967,12 +995,12 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
     <button data-k="ctrl+v" data-pc>Colar</button>
     <button data-k="ctrl+z" data-pc>Desfazer</button>
     <button data-k="alt+tab" data-pc>Alt+Tab</button>
-    <button data-k="win">Iniciar</button>
+    <button data-k="win" data-tvx>Iniciar</button>
     <button data-k="delete" data-pc>Del</button>
     <button data-k="f11" data-pc>Tela cheia</button>
-    <button data-k="voldown">Vol −</button>
-    <button data-k="mute">Mudo</button>
-    <button data-k="volup">Vol +</button>
+    <button data-k="voldown" data-tvx>Vol −</button>
+    <button data-k="mute" data-tvx>Mudo</button>
+    <button data-k="volup" data-tvx>Vol +</button>
     <button data-k="playpause">⏯︎</button>
     <button data-k="next">⏭︎</button>
   </div>
@@ -1396,6 +1424,25 @@ document.querySelectorAll(".susp").forEach(function(btn){
 });
 el("susp-cancelar").addEventListener("click", function(){ vibrar(10); enviar({t:"cancelar_susp"}); });
 
+// ---------- controles da TV (Voltar, Início, volume) ----------
+document.querySelectorAll(".tv-btn").forEach(function(btn){
+  let repetir = null;
+  function parar(){ btn.classList.remove("ativo"); clearInterval(repetir); repetir = null; }
+  btn.addEventListener("pointerdown", function(e){
+    e.preventDefault();
+    btn.classList.add("ativo"); vibrar(12);
+    enviar({t:"k", k:btn.dataset.acao});
+    if (btn.hasAttribute("data-repete")) {
+      clearInterval(repetir);
+      repetir = setInterval(function(){ enviar({t:"k", k:btn.dataset.acao}); }, 220);
+    }
+  });
+  btn.addEventListener("pointerup", parar);
+  btn.addEventListener("pointercancel", parar);
+  btn.addEventListener("pointerleave", parar);
+  btn.addEventListener("contextmenu", function(e){ e.preventDefault(); });
+});
+
 // ---------- modo TV e avisos ----------
 let timerAviso = null;
 window.mtAviso = function(txt){
@@ -1410,7 +1457,7 @@ window.mtModo = function(tv){
   document.querySelector('[data-b="r"]').textContent = tv ? "Voltar" : "Direito";
   document.querySelector('[data-b="m"]').textContent = tv ? "Início" : "Meio";
   el("dica").innerHTML = tv
-    ? "<b>Deslize para mover o cursor da TV</b>Toque = clique &nbsp;•&nbsp; 2 dedos tocando = Voltar<br>2 dedos deslizando = rolar<br>Toque duplo e segure = arrastar"
+    ? "<b>Deslize para mover a setinha da TV</b>Toque = clique &nbsp;•&nbsp; 2 dedos tocando = Voltar<br>2 dedos deslizando = rolar"
     : dicaOriginal;
 };
 
