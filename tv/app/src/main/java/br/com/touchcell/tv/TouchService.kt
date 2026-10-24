@@ -581,6 +581,11 @@ class TouchService : AccessibilityService() {
                 servidor?.avisarTodos(JSONObject().put("t", "aviso").put("s", "A TV não aceitou o comando de desligar"))
                 return
             }
+            val nomes = listOf("tecla Dormir", "tecla Power", "comando de desligar", "bloquear a tela")
+            val txt = "Desligando a TV: tentativa ${i + 1} de ${tentativas.size} (${nomes[i]})" +
+                if (adb?.conectado == true) "" else " · Controle completo desligado"
+            android.widget.Toast.makeText(this, "Touch Cell TV: $txt", android.widget.Toast.LENGTH_SHORT).show()
+            servidor?.avisarTodos(JSONObject().put("t", "aviso").put("s", txt))
             tentativas[i]()
             main.postDelayed({ passo(i + 1) }, 3000)
         }
