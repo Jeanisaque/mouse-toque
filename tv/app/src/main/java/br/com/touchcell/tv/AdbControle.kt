@@ -39,11 +39,20 @@ class AdbControle(private val ctx: Context) {
         if (conectado || !tentando.compareAndSet(false, true)) return
         conexao.execute {
             try {
-                val d = Dadb.create("127.0.0.1", 5555, chave())
-                d.shell("echo ok")          // aqui a TV pede a permissão na primeira vez
-                dadb = d
-                conectado = true
-                ultimoErro = null
+                val erros = ArrayList<String>()
+                for (host in listOf("127.0.0.1") + ipsLocais()) {
+                    try {
+                        val d = Dadb.create(host, 5555, chave())
+                        d.shell("echo ok")          // aqui a TV pede a permissão na primeira vez
+                        dadb = d
+                        conectado = true
+                        ultimoErro = null
+                        break
+                    } catch (e: Throwable) {
+                        erros.add("$host: " + (e.message ?: e.javaClass.simpleName))
+                    }
+                }
+                if (!conectado) ultimoErro = erros.joinToString("\n")
             } catch (e: Throwable) {
                 conectado = false
                 ultimoErro = e.message ?: e.javaClass.simpleName
@@ -77,6 +86,14 @@ class AdbControle(private val ctx: Context) {
     }
 
     fun cliqueMouse(x: Int, y: Int, senao: () -> Unit) = executar("input mouse tap $x $y", senao)
+
+    private fun ipsLocais(): List<String> = try {
+        java.net.NetworkInterface.getNetworkInterfaces().toList()
+            .filter { it.isUp && !it.isLoopback }
+            .flatMap { it.inetAddresses.toList() }
+            .filter { it is java.net.Inet4Address && it.isSiteLocalAddress }
+            .mapNotNull { it.hostAddress }
+    } catch (e: Exception) { emptyList() }
 
     fun fechar() {
         try { dadb?.close() } catch (_: Throwable) {}

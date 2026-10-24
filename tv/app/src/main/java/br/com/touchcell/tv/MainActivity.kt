@@ -180,6 +180,7 @@ class MainActivity : Activity() {
                 "1. Configurações › Preferências do dispositivo › Sobre › clique 7 vezes em \"Build\"\n" +
                 "2. Volte, entre em Opções do desenvolvedor e ative \"Depuração USB\"\n" +
                 "3. Clique no botão abaixo e, na pergunta da TV, marque \"Sempre permitir\" e OK"
+            a?.ultimoErro?.let { completo.text = completo.text.toString() + "\n\nÚltima tentativa: " + it }
             completo.setTextColor(Color.parseColor("#A9B0BF"))
             botaoCompleto.visibility = View.VISIBLE
         }
