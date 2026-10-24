@@ -45,6 +45,8 @@ class TouchService : AccessibilityService() {
     private var params: WindowManager.LayoutParams? = null
     var servidor: Servidor? = null
         private set
+    var adb: AdbControle? = null
+        private set
 
     @Volatile var conectados = 0
         private set
@@ -77,6 +79,17 @@ class TouchService : AccessibilityService() {
             icone = { nome -> iconeApp(nome) }
         ).also { it.iniciar() }
         verificarAtualizacao()
+        adb = AdbControle(this).also { it.conectar() }
+        manterAdb()
+    }
+
+    /** Tenta reconectar o Controle completo de tempos em tempos, se cair. */
+    private fun manterAdb() {
+        main.postDelayed({
+            val a = adb
+            if (a != null && !a.conectado && conectados > 0) a.conectar()
+            manterAdb()
+        }, 30_000L)
     }
 
     private fun verificarAtualizacao() {
@@ -89,10 +102,13 @@ class TouchService : AccessibilityService() {
     private fun avisarAtualizacao(con: Servidor.Conexao) {
         if (Atualizador.temNova(this)) {
             avisar(con, "Tem versão nova do Touch Cell para a TV: abra o app na TV para atualizar")
+        } else if (adb?.conectado != true) {
+            avisar(con, "Para as setas funcionarem dentro dos apps, ative o Controle completo no app da TV")
         }
     }
 
     override fun onDestroy() {
+        adb?.fechar()
         servidor?.parar()
         cursor?.let { try { wm.removeView(it) } catch (_: Exception) {} }
         instancia = null
@@ -222,6 +238,13 @@ class TouchService : AccessibilityService() {
     private fun temAcao(n: AccessibilityNodeInfo, id: Int) = n.actionList.any { it.id == id }
 
     private fun tocar(px: Float, py: Float) {
+        val a = adb
+        if (a != null && a.conectado) {
+            a.cliqueMouse(px.toInt(), py.toInt()) { main.post { tocarSemAdb(px, py) } }
+        } else tocarSemAdb(px, py)
+    }
+
+    private fun tocarSemAdb(px: Float, py: Float) {
         // 1º: clicar no elemento embaixo da setinha (funciona em TV sem tela de toque)
         val alvo = noAlvo(px, py) { it.isClickable || temAcao(it, AccessibilityNodeInfo.ACTION_CLICK) }
         if (alvo != null) {
@@ -506,12 +529,38 @@ class TouchService : AccessibilityService() {
         am.adjustStreamVolume(AudioManager.STREAM_MUSIC, direcao, AudioManager.FLAG_SHOW_UI)
     }
 
+    /** Tecla de verdade pelo Controle completo (ADB); sem ele, usa o plano B. */
+    private fun teclaReal(codigo: Int, n: Int, planoB: () -> Unit) {
+        val a = adb
+        if (a != null && a.conectado) a.tecla(codigo, n) { main.post(planoB) }
+        else planoB()
+    }
+
+    /** Som de navegação da própria TV (o mesmo do controle). */
+    private fun som(tipo: String) {
+        val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val efeito = when (tipo) {
+            "up" -> AudioManager.FX_FOCUS_NAVIGATION_UP
+            "down" -> AudioManager.FX_FOCUS_NAVIGATION_DOWN
+            "left" -> AudioManager.FX_FOCUS_NAVIGATION_LEFT
+            "right" -> AudioManager.FX_FOCUS_NAVIGATION_RIGHT
+            else -> AudioManager.FX_KEY_CLICK
+        }
+        try { am.playSoundEffect(efeito) } catch (_: Exception) {}
+    }
+
     private fun tecla(k: String, n: Int, con: Servidor.Conexao) {
         when (k) {
-            "esc" -> performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+            "esc" -> teclaReal(KeyEvent.KEYCODE_BACK, 1) { performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK) }
             "win" -> irParaInicio()
-            "up", "down", "left", "right" -> repeat(n) { moverFoco(k) }
-            "ok" -> clicarFocado()
+            "up", "down", "left", "right" -> {
+                val codigo = when (k) {
+                    "up" -> KeyEvent.KEYCODE_DPAD_UP; "down" -> KeyEvent.KEYCODE_DPAD_DOWN
+                    "left" -> KeyEvent.KEYCODE_DPAD_LEFT; else -> KeyEvent.KEYCODE_DPAD_RIGHT
+                }
+                teclaReal(codigo, n) { repeat(n) { moverFoco(k) }; som(k) }
+            }
+            "ok" -> teclaReal(KeyEvent.KEYCODE_DPAD_CENTER, 1) { clicarFocado(); som("ok") }
             "mic" -> abrirBusca(con)
             "config" -> abrir(Intent(Settings.ACTION_SETTINGS), con)
             "backspace" -> {
@@ -530,9 +579,9 @@ class TouchService : AccessibilityService() {
             "volup" -> repeat(n) { volume(AudioManager.ADJUST_RAISE) }
             "voldown" -> repeat(n) { volume(AudioManager.ADJUST_LOWER) }
             "mute" -> volume(AudioManager.ADJUST_TOGGLE_MUTE)
-            "playpause" -> midia(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
-            "next" -> midia(KeyEvent.KEYCODE_MEDIA_NEXT)
-            "prev" -> midia(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+            "playpause" -> teclaReal(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, 1) { midia(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) }
+            "next" -> teclaReal(KeyEvent.KEYCODE_MEDIA_NEXT, 1) { midia(KeyEvent.KEYCODE_MEDIA_NEXT) }
+            "prev" -> teclaReal(KeyEvent.KEYCODE_MEDIA_PREVIOUS, 1) { midia(KeyEvent.KEYCODE_MEDIA_PREVIOUS) }
             else -> avisar(con, "Essa tecla não funciona na TV")
         }
     }

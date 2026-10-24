@@ -36,6 +36,8 @@ class MainActivity : Activity() {
     private lateinit var estado: TextView
     private lateinit var botao: Button
     private lateinit var aviso: TextView
+    private lateinit var completo: TextView
+    private lateinit var botaoCompleto: Button
     private lateinit var botaoPermitir: Button
     private var urlAtual = ""
     @Volatile private var atualizando = false
@@ -64,7 +66,7 @@ class MainActivity : Activity() {
         titulo = rotulo(34f, Color.WHITE, true).apply { text = "Touch Cell" }
         texto = rotulo(18f, Color.parseColor("#A9B0BF")).apply { setPadding(0, dp(8), 0, dp(16)) }
         qr = ImageView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(dp(220), dp(220))
+            layoutParams = LinearLayout.LayoutParams(dp(180), dp(180))
             setPadding(dp(10), dp(10), dp(10), dp(10))
             background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(14).toFloat() }
         }
@@ -73,6 +75,11 @@ class MainActivity : Activity() {
         botao = Button(this).apply {
             text = "Abrir configurações de Acessibilidade"
             setOnClickListener { abrirAcessibilidade() }
+        }
+        completo = rotulo(15f, Color.parseColor("#A9B0BF")).apply { setPadding(0, dp(12), 0, dp(4)) }
+        botaoCompleto = Button(this).apply {
+            text = "Ativar controle completo"
+            setOnClickListener { ativarCompleto() }
         }
         aviso = rotulo(16f, Color.parseColor("#8FB4FF")).apply { setPadding(0, dp(10), 0, 0); visibility = View.GONE }
         botaoPermitir = Button(this).apply {
@@ -86,8 +93,14 @@ class MainActivity : Activity() {
         }
         raiz.addView(titulo); raiz.addView(texto); raiz.addView(qr)
         raiz.addView(endereco); raiz.addView(estado); raiz.addView(botao)
+        raiz.addView(completo); raiz.addView(botaoCompleto)
         raiz.addView(aviso); raiz.addView(botaoPermitir); raiz.addView(creditos)
-        setContentView(raiz)
+        val rolagem = android.widget.ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(Color.parseColor("#0F1115"))
+            addView(raiz)
+        }
+        setContentView(rolagem)
     }
 
     override fun onResume() {
@@ -144,6 +157,34 @@ class MainActivity : Activity() {
     }
     override fun onPause() { handler.removeCallbacks(atualizar); super.onPause() }
 
+    private fun ativarCompleto() {
+        val a = TouchService.instancia?.adb ?: return
+        a.conectar { runOnUiThread { mostrar() } }
+        // se a depuração estiver desligada, abre as opções de desenvolvedor
+        handler.postDelayed({
+            if (!a.conectado) {
+                try { startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)) }
+                catch (e: Exception) { try { startActivity(Intent(Settings.ACTION_DEVICE_INFO_SETTINGS)) } catch (_: Exception) {} }
+            }
+        }, 4000)
+    }
+
+    private fun mostrarCompleto(servico: TouchService) {
+        val a = servico.adb
+        if (a != null && a.conectado) {
+            completo.text = "✓ Controle completo ativo: setas e OK funcionam dentro dos apps"
+            completo.setTextColor(Color.parseColor("#2ECC71"))
+            botaoCompleto.visibility = View.GONE
+        } else {
+            completo.text = "Controle completo (para as setas funcionarem dentro dos apps):\n" +
+                "1. Configurações › Preferências do dispositivo › Sobre › clique 7 vezes em \"Build\"\n" +
+                "2. Volte, entre em Opções do desenvolvedor e ative \"Depuração USB\"\n" +
+                "3. Clique no botão abaixo e, na pergunta da TV, marque \"Sempre permitir\" e OK"
+            completo.setTextColor(Color.parseColor("#A9B0BF"))
+            botaoCompleto.visibility = View.VISIBLE
+        }
+    }
+
     private fun abrirAcessibilidade() {
         try { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         catch (e: Exception) { startActivity(Intent(Settings.ACTION_SETTINGS)) }
@@ -158,10 +199,14 @@ class MainActivity : Activity() {
             endereco.visibility = View.GONE
             estado.visibility = View.GONE
             botao.visibility = View.VISIBLE
+            completo.visibility = View.GONE
+            botaoCompleto.visibility = View.GONE
             if (!botao.isFocused) botao.requestFocus()
             return
         }
         botao.visibility = View.GONE
+        completo.visibility = View.VISIBLE
+        mostrarCompleto(servico)
         qr.visibility = View.VISIBLE
         endereco.visibility = View.VISIBLE
         estado.visibility = View.VISIBLE
