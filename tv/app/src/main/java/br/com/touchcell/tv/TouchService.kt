@@ -9,6 +9,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.Point
+import android.graphics.Rect
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
@@ -167,7 +168,49 @@ class TouchService : AccessibilityService() {
         }
     }
 
+    // ---- achar o elemento da tela que está embaixo da setinha ----
+
+    private fun maisFundo(n: AccessibilityNodeInfo, px: Int, py: Int): AccessibilityNodeInfo {
+        val r = Rect()
+        for (i in n.childCount - 1 downTo 0) {
+            val c = n.getChild(i) ?: continue
+            if (!c.isVisibleToUser) continue
+            c.getBoundsInScreen(r)
+            if (r.contains(px, py)) return maisFundo(c, px, py)
+        }
+        return n
+    }
+
+    private fun noAlvo(px: Float, py: Float, filtro: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo? {
+        val ix = px.toInt(); val iy = py.toInt()
+        val raizes = ArrayList<AccessibilityNodeInfo>()
+        try {
+            windows.sortedByDescending { it.layer }.forEach { w -> w.root?.let { raizes.add(it) } }
+        } catch (_: Exception) {}
+        if (raizes.isEmpty()) rootInActiveWindow?.let { raizes.add(it) }
+        val r = Rect()
+        for (raiz in raizes) {
+            raiz.getBoundsInScreen(r)
+            if (!r.contains(ix, iy)) continue
+            var n: AccessibilityNodeInfo? = maisFundo(raiz, ix, iy)
+            while (n != null) {
+                if (filtro(n)) return n
+                n = n.parent
+            }
+        }
+        return null
+    }
+
+    private fun temAcao(n: AccessibilityNodeInfo, id: Int) = n.actionList.any { it.id == id }
+
     private fun tocar(px: Float, py: Float) {
+        // 1º: clicar no elemento embaixo da setinha (funciona em TV sem tela de toque)
+        val alvo = noAlvo(px, py) { it.isClickable || temAcao(it, AccessibilityNodeInfo.ACTION_CLICK) }
+        if (alvo != null) {
+            if (alvo.isFocusable && !alvo.isFocused) alvo.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+            if (alvo.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return
+        }
+        // 2º: toque simulado na tela
         val p = Path().apply { moveTo(px, py) }
         val g = GestureDescription.Builder()
             .addStroke(GestureDescription.StrokeDescription(p, 0, 60))
@@ -189,6 +232,31 @@ class TouchService : AccessibilityService() {
 
     private fun rolar() {
         if (rolando) return
+        val passo = 60f
+        if (abs(rolarY) >= passo || abs(rolarX) >= passo) {
+            val vertical = abs(rolarY) >= abs(rolarX)
+            val valor = if (vertical) rolarY else rolarX
+            val lista = noAlvo(x, y) { it.isScrollable }
+            if (lista != null) {
+                // dedo para baixo/direita = voltar o conteúdo (como no celular)
+                val voltar = valor > 0
+                val especifica = when {
+                    vertical && voltar -> AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP
+                    vertical -> AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN
+                    voltar -> AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT
+                    else -> AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT
+                }
+                val acao = if (temAcao(lista, especifica.id)) especifica.id
+                    else if (voltar) AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+                    else AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+                if (vertical) rolarY -= passo * Math.signum(valor) else rolarX -= passo * Math.signum(valor)
+                if (vertical) rolarX = 0f else rolarY = 0f
+                lista.performAction(acao)
+                rolando = true
+                main.postDelayed({ rolando = false; rolar() }, 110)
+                return
+            }
+        }
         val dy = rolarY.coerceIn(-altura * 0.4f, altura * 0.4f)
         val dx = rolarX.coerceIn(-largura * 0.4f, largura * 0.4f)
         if (abs(dy) < 25f && abs(dx) < 25f) return

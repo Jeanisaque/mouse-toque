@@ -4,6 +4,7 @@
     android:accessibilityFeedbackType="feedbackGeneric"
     android:canPerformGestures="true"
     android:canRetrieveWindowContent="true"
+    android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagIncludeNotImportantViews"
     android:notificationTimeout="100"
     android:description="@string/descricao_acessibilidade"
     android:settingsActivity="br.com.touchcell.tv.MainActivity" />
