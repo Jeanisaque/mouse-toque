@@ -1,5 +1,5 @@
 ==========================================================
-  MOUSE TOQUE 1.3
+  MOUSE TOQUE 1.4
   Criado por Isaque Andrade e Joel Andrade
 ==========================================================
 
@@ -41,6 +41,15 @@ No botão "Teclado" você digita no PC e tem atalhos como Copiar,
 Colar, Alt+Tab, volume e controle de música.
 
 No ⚙ (canto de cima) ajusta velocidade, rolagem e vibração.
+
+
+BRILHO E ENERGIA
+----------------
+No botão "Brilho e energia":
+- Ajuste o brilho da tela com a barra ou com - e +.
+  (Monitor de mesa: ative a opção DDC/CI no menu do monitor.)
+- Suspender o PC agora (toque 2 vezes para confirmar) ou com
+  timer de 15 min, 30 min ou 1 hora. Dá para cancelar.
 
 
 ATUALIZAÇÕES

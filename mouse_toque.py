@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Mouse Toque"
 CREDITOS = "Criado por Isaque Andrade e Joel Andrade"
-VERSAO = "1.3"
+VERSAO = "1.4"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -307,6 +307,169 @@ class Executor:
 
 
 # ---------------------------------------------------------------------------
+# Brilho da tela e suspender
+# ---------------------------------------------------------------------------
+
+def _powershell(comando, limite=10):
+    flags = 0x08000000 if sys.platform == "win32" else 0   # sem janela piscando
+    r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", comando],
+                       capture_output=True, text=True, timeout=limite, creationflags=flags)
+    return r.returncode, (r.stdout or "").strip()
+
+
+def _brilho_ddc(valor=None):
+    """Monitores externos (DDC/CI). Sem valor: lê (0-100). Com valor: ajusta e devolve True/False."""
+    import ctypes
+    from ctypes import wintypes
+
+    class PHYSICAL_MONITOR(ctypes.Structure):
+        _fields_ = [("hPhysicalMonitor", wintypes.HANDLE),
+                    ("szPhysicalMonitorDescription", wintypes.WCHAR * 128)]
+
+    user32, dxva2 = ctypes.windll.user32, ctypes.windll.dxva2
+    DW = ctypes.POINTER(wintypes.DWORD)
+    dxva2.GetNumberOfPhysicalMonitorsFromHMONITOR.argtypes = [wintypes.HMONITOR, DW]
+    dxva2.GetPhysicalMonitorsFromHMONITOR.argtypes = [wintypes.HMONITOR, wintypes.DWORD,
+                                                       ctypes.POINTER(PHYSICAL_MONITOR)]
+    dxva2.GetMonitorBrightness.argtypes = [wintypes.HANDLE, DW, DW, DW]
+    dxva2.SetMonitorBrightness.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    dxva2.DestroyPhysicalMonitors.argtypes = [wintypes.DWORD, ctypes.POINTER(PHYSICAL_MONITOR)]
+
+    monitores = []
+    PROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HMONITOR, wintypes.HDC,
+                              ctypes.POINTER(wintypes.RECT), wintypes.LPARAM)
+    def _cb(hmon, hdc, rect, lp):
+        monitores.append(hmon)
+        return True
+    cb = PROC(_cb)
+    user32.EnumDisplayMonitors(None, None, cb, 0)
+
+    lido, ajustou = None, False
+    for hmon in monitores:
+        n = wintypes.DWORD()
+        if not dxva2.GetNumberOfPhysicalMonitorsFromHMONITOR(hmon, ctypes.byref(n)) or not n.value:
+            continue
+        lista = (PHYSICAL_MONITOR * n.value)()
+        if not dxva2.GetPhysicalMonitorsFromHMONITOR(hmon, n.value, lista):
+            continue
+        try:
+            for pm in lista:
+                mn, at, mx = wintypes.DWORD(), wintypes.DWORD(), wintypes.DWORD()
+                if not dxva2.GetMonitorBrightness(pm.hPhysicalMonitor, ctypes.byref(mn),
+                                                  ctypes.byref(at), ctypes.byref(mx)):
+                    continue
+                faixa = max(1, mx.value - mn.value)
+                if valor is None:
+                    if lido is None:
+                        lido = round((at.value - mn.value) * 100 / faixa)
+                elif dxva2.SetMonitorBrightness(pm.hPhysicalMonitor, mn.value + round(valor * faixa / 100)):
+                    ajustou = True
+        finally:
+            dxva2.DestroyPhysicalMonitors(n.value, lista)
+    return lido if valor is None else ajustou
+
+
+class Energia:
+    """Brilho da tela e suspensão (com timer)."""
+
+    def __init__(self, teste=False):
+        self.teste = teste
+        self.trava = threading.Lock()
+        self.timer = None
+        self.fim = 0.0
+        self.avisar = lambda msg: None      # o servidor troca por uma função que avisa os celulares
+        self.brilho_teste = 50
+
+    # ---- brilho ----
+    def ler_brilho(self):
+        if self.teste:
+            return self.brilho_teste
+        if sys.platform != "win32":
+            return None
+        try:   # notebook / tela embutida
+            cod, saida = _powershell("(Get-WmiObject -Namespace root/wmi -Class WmiMonitorBrightness "
+                                     "-ErrorAction Stop | Select-Object -First 1).CurrentBrightness")
+            if cod == 0 and saida.isdigit():
+                return int(saida)
+        except Exception:
+            pass
+        try:   # monitor externo
+            return _brilho_ddc()
+        except Exception:
+            return None
+
+    def definir_brilho(self, valor):
+        valor = max(0, min(100, int(valor)))
+        if self.teste:
+            print(f"   [teste] brilho {valor}")
+            self.brilho_teste = valor
+            return valor
+        if sys.platform != "win32":
+            return None
+        try:
+            cod, _ = _powershell("(Get-WmiObject -Namespace root/wmi -Class WmiMonitorBrightnessMethods "
+                                 f"-ErrorAction Stop | Select-Object -First 1).WmiSetBrightness(1, {valor})")
+            if cod == 0:
+                return valor
+        except Exception:
+            pass
+        try:
+            if _brilho_ddc(valor):
+                return valor
+        except Exception:
+            pass
+        return None
+
+    # ---- suspender ----
+    def restante(self):
+        with self.trava:
+            return max(0, int(self.fim - time.time())) if self.fim else 0
+
+    def agendar(self, minutos):
+        with self.trava:
+            if self.timer:
+                self.timer.cancel()
+            minutos = max(0, min(600, int(minutos)))
+            espera = minutos * 60 if minutos else 1.5    # "agora": dá tempo de avisar o celular
+            self.fim = time.time() + espera
+            self.timer = threading.Timer(espera, self._disparar)
+            self.timer.daemon = True
+            self.timer.start()
+        if minutos:
+            print(f"  .. PC vai suspender em {minutos} min")
+        else:
+            print("  .. Suspendendo o PC")
+
+    def cancelar(self):
+        with self.trava:
+            if self.timer:
+                self.timer.cancel()
+            self.timer, self.fim = None, 0.0
+        print("  .. Suspensão cancelada")
+
+    def _disparar(self):
+        with self.trava:
+            self.timer, self.fim = None, 0.0
+        self.avisar({"t": "susp", "resta": 0})
+        self.suspender_agora()
+
+    def suspender_agora(self):
+        if self.teste:
+            print("   [teste] suspender")
+            return
+        try:
+            if sys.platform == "win32":
+                import ctypes
+                ctypes.windll.powrprof.SetSuspendState(0, 1, 0)
+            elif sys.platform == "darwin":
+                subprocess.run(["pmset", "sleepnow"])
+            else:
+                subprocess.run(["systemctl", "suspend"])
+        except Exception as e:
+            print("  !! Não consegui suspender:", e)
+
+
+# ---------------------------------------------------------------------------
 # Servidor (HTTP + WebSocket, só com a biblioteca padrão do Python)
 # ---------------------------------------------------------------------------
 
@@ -356,11 +519,42 @@ class Servidor(socketserver.ThreadingTCPServer):
     daemon_threads = True
     allow_reuse_address = sys.platform != "win32"
 
-    def __init__(self, endereco, executor, codigo, url):
+    def __init__(self, endereco, executor, codigo, url, energia):
         super().__init__(endereco, Atendente)
         self.executor, self.codigo, self.url = executor, codigo, url
+        self.energia = energia
         self.conectados = 0
+        self.conexoes = set()
         self.trava = threading.Lock()
+        energia.avisar = self.avisar_todos
+
+    def avisar_todos(self, msg):
+        texto = json.dumps(msg)
+        with self.trava:
+            alvos = list(self.conexoes)
+        for ws in alvos:
+            try:
+                ws.enviar(texto)
+            except OSError:
+                pass
+
+    def tratar_energia(self, ws, msg):
+        """Roda numa thread separada: brilho pode demorar um pouco."""
+        t, en = msg.get("t"), self.energia
+        try:
+            if t == "brilho_ler":
+                ws.enviar(json.dumps({"t": "brilho", "v": en.ler_brilho()}))
+            elif t == "brilho":
+                v = en.definir_brilho(_num(msg.get("v"), 100))
+                self.avisar_todos({"t": "brilho", "v": v})
+            elif t == "suspender":
+                en.agendar(_num(msg.get("min"), 600))
+                self.avisar_todos({"t": "susp", "resta": en.restante(), "agora": not msg.get("min")})
+            elif t == "cancelar_susp":
+                en.cancelar()
+                self.avisar_todos({"t": "susp", "resta": 0})
+        except Exception as e:
+            print("  !! Erro em brilho/energia:", e)
 
 
 class Atendente(socketserver.BaseRequestHandler):
@@ -446,7 +640,10 @@ class Atendente(socketserver.BaseRequestHandler):
                         autorizado = True
                         with srv.trava:
                             srv.conectados += 1
-                        ws.enviar(json.dumps({"t": "ok", "pc": socket.gethostname()}))
+                        with srv.trava:
+                            srv.conexoes.add(ws)
+                        ws.enviar(json.dumps({"t": "ok", "pc": socket.gethostname(),
+                                              "susp": srv.energia.restante()}))
                         print(f"  >> Celular conectado ({ip})")
                     else:
                         ws.enviar(json.dumps({"t": "erro"}))
@@ -455,6 +652,9 @@ class Atendente(socketserver.BaseRequestHandler):
                     continue
                 if msg.get("t") == "ping":
                     ws.enviar('{"t":"pong"}')
+                    continue
+                if msg.get("t") in ("brilho_ler", "brilho", "suspender", "cancelar_susp"):
+                    threading.Thread(target=srv.tratar_energia, args=(ws, msg), daemon=True).start()
                     continue
                 try:
                     srv.executor.tratar(msg)
@@ -467,6 +667,7 @@ class Atendente(socketserver.BaseRequestHandler):
                 srv.executor.soltar_tudo()
                 with srv.trava:
                     srv.conectados -= 1
+                    srv.conexoes.discard(ws)
                 print(f"  << Celular desconectado ({ip})")
 
 
@@ -583,13 +784,14 @@ def main(argv=None):
 
     codigo = carregar_codigo("--novo-codigo" in argv)
     executor = Executor(criar_controle(teste))
+    energia = Energia(teste)
     ip = ip_local()
 
     servidor = None
     for p in range(porta, porta + 10):
         try:
             url = f"http://{ip}:{p}/?k={codigo}"
-            servidor = Servidor(("0.0.0.0", p), executor, codigo, url)
+            servidor = Servidor(("0.0.0.0", p), executor, codigo, url, energia)
             porta = p
             break
         except OSError:
@@ -664,6 +866,18 @@ header h1{font-size:17px;margin:0;font-weight:650;flex:1;letter-spacing:.2px}
 .mini.perigo{color:var(--err)}
 .acoes{display:flex;gap:8px}
 #msg-foto{color:var(--sub);font-size:12.5px;padding:0 0 6px}
+.brilho-ctl{display:flex;align-items:center;gap:10px;padding:4px 0 8px}
+.brilho-ctl input{flex:1;accent-color:var(--acc);height:28px}
+.mini.passo{width:44px;height:44px;padding:0;font-size:20px}
+#msg-brilho{color:var(--sub);font-size:12.5px;line-height:1.45;min-height:4px;padding-bottom:6px}
+.subtitulo{margin:14px 0 4px;font-size:15px}
+.dica-susp{margin:0 0 10px;color:var(--sub);font-size:12.5px;line-height:1.45}
+.susp-grade{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.susp-grade .mini{height:44px;padding:0}
+.mini.confirmar{background:var(--err);border-color:var(--err);color:#fff}
+#susp-status{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:10px 12px;border-radius:12px;background:#2a2412;border:1px solid #5c4a17;font-size:14px}
+#susp-status[hidden]{display:none}
+#susp-mini{color:var(--warn);font-size:12px}
 #dica{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:var(--sub);font-size:13px;text-align:center;pointer-events:none;transition:opacity .8s;padding:20px;line-height:1.45}
 #dica b{color:var(--txt);font-size:15px;font-weight:600;margin-bottom:4px}
 #dica.some{opacity:0}
@@ -732,6 +946,7 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
 
 <div class="barra">
   <button id="btn-teclado">⌨︎ Teclado</button>
+  <button id="btn-energia">☀︎ Brilho e energia <span id="susp-mini"></span></button>
 </div>
 
 <div id="teclado">
@@ -780,6 +995,32 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
   </div>
 </div>
 
+<div class="folha" id="energia">
+  <div class="cartao">
+    <h2>Brilho e energia</h2>
+    <div class="linha"><span>Brilho da tela</span><span class="valor" id="v-brilho">…</span></div>
+    <div class="brilho-ctl">
+      <button class="mini passo" id="brilho-menos" aria-label="Diminuir brilho">−</button>
+      <input type="range" id="e-brilho" min="0" max="100" step="5" value="50" aria-label="Brilho da tela">
+      <button class="mini passo" id="brilho-mais" aria-label="Aumentar brilho">+</button>
+    </div>
+    <div id="msg-brilho"></div>
+    <h3 class="subtitulo">Suspender o PC</h3>
+    <p class="dica-susp">O PC entra em repouso e acorda ao mexer no mouse ou no teclado dele.</p>
+    <div class="susp-grade">
+      <button class="mini susp" data-min="0" id="susp-agora">Agora</button>
+      <button class="mini susp" data-min="15">15 min</button>
+      <button class="mini susp" data-min="30">30 min</button>
+      <button class="mini susp" data-min="60">1 hora</button>
+    </div>
+    <div id="susp-status" hidden>
+      <span id="susp-texto"></span>
+      <button class="mini perigo" id="susp-cancelar">Cancelar</button>
+    </div>
+    <button class="ok-btn" id="fechar-energia">Pronto</button>
+  </div>
+</div>
+
 <div class="folha" id="codigo">
   <div class="cartao">
     <h2>Código de acesso</h2>
@@ -825,7 +1066,9 @@ function conectar(){
     if (este !== ws) return;
     let m; try{ m = JSON.parse(e.data); }catch(_){ return; }
     ultimaResposta = Date.now();
-    if (m.t === "ok"){ pronto = true; status("ok", m.pc ? "Conectado a " + m.pc : "Conectado"); }
+    if (m.t === "ok"){ pronto = true; status("ok", m.pc ? "Conectado a " + m.pc : "Conectado"); if (window.mtSusp) window.mtSusp(m.susp || 0); }
+    else if (m.t === "brilho"){ if (window.mtBrilho) window.mtBrilho(m.v); }
+    else if (m.t === "susp"){ if (window.mtSusp) window.mtSusp(m.resta || 0, m.agora); }
     else if (m.t === "erro"){ pronto = false; bloqueado = true; gravar("codigo", ""); codigo = ""; pedirCodigo("Código incorreto. Confira na tela do PC."); }
   };
   este.onclose = function(){
@@ -1085,6 +1328,68 @@ el("foto-remover").addEventListener("click", function(){
   msgFoto.textContent = ""; aplicarFundo();
 });
 aplicarFundo();
+
+// ---------- brilho e energia ----------
+const folhaEn = el("energia"), slBrilho = el("e-brilho"), vBrilho = el("v-brilho"), msgBrilho = el("msg-brilho");
+let timerBrilho = null;
+function mandarBrilho(v){
+  v = Math.max(0, Math.min(100, Math.round(v)));
+  slBrilho.value = v; vBrilho.textContent = v + "%";
+  clearTimeout(timerBrilho);
+  timerBrilho = setTimeout(function(){ enviar({t:"brilho", v:v}); }, 250);
+}
+window.mtBrilho = function(v){
+  if (v === null || v === undefined){
+    vBrilho.textContent = "—";
+    msgBrilho.textContent = "Este monitor não deixa o computador mudar o brilho. Em monitor de mesa, ative a opção DDC/CI no menu do próprio monitor.";
+    return;
+  }
+  msgBrilho.textContent = "";
+  slBrilho.value = v; vBrilho.textContent = v + "%";
+};
+slBrilho.addEventListener("input", function(){ mandarBrilho(parseInt(slBrilho.value, 10)); });
+el("brilho-menos").addEventListener("click", function(){ vibrar(8); mandarBrilho(parseInt(slBrilho.value, 10) - 10); });
+el("brilho-mais").addEventListener("click", function(){ vibrar(8); mandarBrilho(parseInt(slBrilho.value, 10) + 10); });
+el("btn-energia").addEventListener("click", function(){
+  folhaEn.classList.add("aberta");
+  msgBrilho.textContent = "";
+  vBrilho.textContent = "…";
+  enviar({t:"brilho_ler"});
+});
+el("fechar-energia").addEventListener("click", function(){ folhaEn.classList.remove("aberta"); });
+folhaEn.addEventListener("click", function(e){ if (e.target === folhaEn) folhaEn.classList.remove("aberta"); });
+
+// suspender (com confirmação no "Agora" e timer nos outros)
+let fimSusp = 0, confirmaAte = 0;
+const btnAgora = el("susp-agora");
+function mmss(seg){ const m = Math.floor(seg / 60), s2 = seg % 60; return (m >= 60 ? Math.floor(m/60) + "h" + String(m%60).padStart(2,"0") : m) + ":" + String(s2).padStart(2,"0"); }
+function mostrarSusp(){
+  const resta = fimSusp ? Math.max(0, Math.round((fimSusp - Date.now()) / 1000)) : 0;
+  const caixa = el("susp-status");
+  if (resta > 0){
+    caixa.hidden = false;
+    el("susp-texto").textContent = resta <= 3 ? "Suspendendo o PC…" : "O PC vai suspender em " + mmss(resta);
+    el("susp-mini").textContent = resta <= 3 ? "· suspendendo" : "· " + mmss(resta);
+  } else {
+    caixa.hidden = true; el("susp-mini").textContent = ""; fimSusp = 0;
+  }
+}
+window.mtSusp = function(resta){ fimSusp = resta > 0 ? Date.now() + resta * 1000 : 0; mostrarSusp(); };
+setInterval(function(){ if (fimSusp) mostrarSusp(); if (confirmaAte && Date.now() > confirmaAte){ confirmaAte = 0; btnAgora.textContent = "Agora"; btnAgora.classList.remove("confirmar"); } }, 1000);
+document.querySelectorAll(".susp").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    const min = parseInt(btn.dataset.min, 10);
+    if (min === 0 && !confirmaAte){
+      confirmaAte = Date.now() + 3500;
+      btnAgora.textContent = "Confirmar"; btnAgora.classList.add("confirmar"); vibrar(20);
+      return;
+    }
+    confirmaAte = 0; btnAgora.textContent = "Agora"; btnAgora.classList.remove("confirmar");
+    vibrar(15);
+    enviar({t:"suspender", min:min});
+  });
+});
+el("susp-cancelar").addEventListener("click", function(){ vibrar(10); enviar({t:"cancelar_susp"}); });
 
 // ---------- tela do código ----------
 const folhaCod = el("codigo"), codInput = el("cod-input"), codMsg = el("cod-msg");

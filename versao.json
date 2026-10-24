@@ -1,9 +1,7 @@
 {
-  "versao": "1.3",
+  "versao": "1.4",
   "novidades": [
-    "Foto de fundo no touchpad, com transparência ajustável",
-    "Atualização automática, sem perguntar",
-    "Botão de sincronizar e reconexão automática",
-    "Teclado não fica mais escondido no celular"
+    "Controle de brilho da tela pelo celular",
+    "Botão para suspender o PC: agora ou com timer (15 min, 30 min, 1 hora)"
   ]
 }
