@@ -26,6 +26,7 @@ class Servidor(
     private val aoComando: (JSONObject, Conexao) -> Unit,
     private val aoMudarConexoes: (Int) -> Unit,
     private val aoConectar: (Conexao) -> Unit = {},
+    private val icone: (String) -> ByteArray? = { null },
 ) {
     companion object {
         const val PORTA_PADRAO = 8765
@@ -122,6 +123,18 @@ class Servidor(
             }
             if (rota == "/ws" && cabecalhos["upgrade"].equals("websocket", ignoreCase = true)) {
                 websocket(s, entrada, saida, cabecalhos["sec-websocket-key"] ?: "")
+            } else if (rota == "/icone") {
+                val nome = java.net.URLDecoder.decode(
+                    partes[1].substringAfter("n=", "").substringBefore("&"), "UTF-8")
+                val png = if (nome.isNotBlank()) icone(nome) else null
+                if (png != null) {
+                    saida.write(("HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: ${png.size}\r\n" +
+                        "Cache-Control: max-age=86400\r\nConnection: close\r\n\r\n").toByteArray(Charsets.ISO_8859_1))
+                    saida.write(png); saida.flush()
+                } else {
+                    responder(saida, 404, "text/plain; charset=utf-8", "sem ícone")
+                }
+                s.close()
             } else if (rota == "/") {
                 responder(saida, 200, "text/html; charset=utf-8", pagina)
                 s.close()

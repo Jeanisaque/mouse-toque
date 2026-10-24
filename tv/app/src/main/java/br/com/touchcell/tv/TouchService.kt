@@ -73,7 +73,8 @@ class TouchService : AccessibilityService() {
         servidor = Servidor(this, nome,
             aoComando = { msg, con -> main.post { tratar(msg, con) } },
             aoMudarConexoes = { n -> main.post { conectados = n; mostrarCursor(n > 0) } },
-            aoConectar = { con -> avisarAtualizacao(con) }
+            aoConectar = { con -> avisarAtualizacao(con) },
+            icone = { nome -> iconeApp(nome) }
         ).also { it.iniciar() }
         verificarAtualizacao()
     }
@@ -179,6 +180,7 @@ class TouchService : AccessibilityService() {
                 val n = msg.optInt("n", 1).coerceIn(1, 200)
                 tecla(msg.optString("k"), n, con)
             }
+            "app" -> abrirApp(msg.optString("n"), con)
             "brilho_ler", "brilho" -> con.enviar("{\"t\":\"brilho\",\"v\":null}")
             "suspender", "cancelar_susp" -> con.enviar("{\"t\":\"susp\",\"resta\":0}")
         }
@@ -309,12 +311,175 @@ class TouchService : AccessibilityService() {
 
     private fun digitar(texto: String, con: Servidor.Conexao) {
         if (texto.isEmpty()) return
-        val n = campoFocado()
+        var n = campoFocado()
         if (n == null) {
-            avisar(con, "Clique primeiro num campo de texto na TV")
+            n = rootInActiveWindow?.let { primeiro(it) { c -> c.isEditable } }
+            n?.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+            n?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        }
+        if (n == null) {
+            avisar(con, "Selecione primeiro um campo de texto na TV")
             return
         }
         definirTexto(n, textoAtual(n) + texto)
+    }
+
+    // ---------------------------------------------------------------- direcional (seleção)
+
+    private fun focado(): AccessibilityNodeInfo? =
+        rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.takeIf { it.isVisibleToUser }
+
+    private fun focaveis(n: AccessibilityNodeInfo, lista: MutableList<AccessibilityNodeInfo>) {
+        for (i in 0 until n.childCount) {
+            val c = n.getChild(i) ?: continue
+            if (!c.isVisibleToUser) continue
+            if (c.isFocusable && c.isEnabled) lista.add(c)
+            focaveis(c, lista)
+        }
+    }
+
+    private fun primeiro(raiz: AccessibilityNodeInfo, filtro: (AccessibilityNodeInfo) -> Boolean): AccessibilityNodeInfo? {
+        val fila = ArrayDeque<AccessibilityNodeInfo>(); fila.add(raiz)
+        while (fila.isNotEmpty()) {
+            val n = fila.removeFirst()
+            if (n.isVisibleToUser && filtro(n)) return n
+            for (i in 0 until n.childCount) n.getChild(i)?.let { fila.add(it) }
+        }
+        return null
+    }
+
+    private fun primeiroFocavel(raiz: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val lista = ArrayList<AccessibilityNodeInfo>(); focaveis(raiz, lista)
+        val r = Rect()
+        return lista.minByOrNull { it.getBoundsInScreen(r); r.top * 10000 + r.left }
+    }
+
+    /** Procura, pela posição na tela, o item selecionável mais próximo na direção pedida. */
+    private fun vizinho(raiz: AccessibilityNodeInfo, atual: AccessibilityNodeInfo, dir: String): AccessibilityNodeInfo? {
+        val lista = ArrayList<AccessibilityNodeInfo>(); focaveis(raiz, lista)
+        val a = Rect(); atual.getBoundsInScreen(a)
+        val r = Rect()
+        var melhor: AccessibilityNodeInfo? = null
+        var melhorNota = Float.MAX_VALUE
+        for (n in lista) {
+            if (n == atual) continue
+            n.getBoundsInScreen(r)
+            if (r.isEmpty || r.contains(a)) continue
+            val dx = (r.centerX() - a.centerX()).toFloat()
+            val dy = (r.centerY() - a.centerY()).toFloat()
+            val (prim, sec, ok) = when (dir) {
+                "right" -> Triple(dx, abs(dy), r.left >= a.centerX())
+                "left" -> Triple(-dx, abs(dy), r.right <= a.centerX())
+                "down" -> Triple(dy, abs(dx), r.top >= a.centerY())
+                else -> Triple(-dy, abs(dx), r.bottom <= a.centerY())
+            }
+            if (!ok || prim <= 0f) continue
+            val nota = prim + 2.5f * sec
+            if (nota < melhorNota) { melhorNota = nota; melhor = n }
+        }
+        return melhor
+    }
+
+    private fun moverFoco(dir: String) {
+        val raiz = rootInActiveWindow ?: return
+        val atual = focado()
+        if (atual == null) {
+            primeiroFocavel(raiz)?.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+            return
+        }
+        val d = when (dir) { "up" -> View.FOCUS_UP; "down" -> View.FOCUS_DOWN; "left" -> View.FOCUS_LEFT; else -> View.FOCUS_RIGHT }
+        val prox = try { atual.focusSearch(d) } catch (e: Exception) { null }
+        if (prox != null && prox != atual && prox.performAction(AccessibilityNodeInfo.ACTION_FOCUS)) return
+        val geo = vizinho(raiz, atual, dir)
+        if (geo != null && geo.performAction(AccessibilityNodeInfo.ACTION_FOCUS)) return
+        // chegou na borda de uma lista: rola e tenta de novo
+        var p: AccessibilityNodeInfo? = atual
+        while (p != null && !p.isScrollable) p = p.parent
+        if (p != null) {
+            val acao = if (dir == "up" || dir == "left") AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+                else AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+            if (p.performAction(acao)) {
+                main.postDelayed({
+                    val f = focado() ?: return@postDelayed
+                    val raiz2 = rootInActiveWindow ?: return@postDelayed
+                    (try { f.focusSearch(d) } catch (e: Exception) { null } ?: vizinho(raiz2, f, dir))
+                        ?.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                }, 180)
+            }
+        }
+    }
+
+    private fun clicarFocado() {
+        val f = focado()
+        if (f == null) {
+            rootInActiveWindow?.let { primeiroFocavel(it) }?.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+            return
+        }
+        if (f.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return
+        var n: AccessibilityNodeInfo? = f.parent
+        while (n != null) {
+            if (n.isClickable && n.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return
+            n = n.parent
+        }
+        val r = Rect(); f.getBoundsInScreen(r)
+        tocar(r.exactCenterX(), r.exactCenterY())
+    }
+
+    // ---------------------------------------------------------------- apps, busca, configurações
+
+    private fun abrir(i: Intent, con: Servidor.Conexao?): Boolean {
+        return try {
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(i); true
+        } catch (e: Exception) {
+            con?.let { avisar(it, "A TV não deixou abrir isso") }; false
+        }
+    }
+
+    private fun abrirBusca(con: Servidor.Conexao) {
+        val opcoes = listOf(
+            Intent("android.search.action.GLOBAL_SEARCH"),
+            Intent(Intent.ACTION_ASSIST),
+            Intent(Intent.ACTION_WEB_SEARCH)
+        )
+        for (i in opcoes) if (abrir(i, null)) return
+        avisar(con, "Não encontrei a busca da TV")
+    }
+
+    private fun acharApp(nome: String): android.content.pm.ResolveInfo? {
+        val pm = packageManager
+        val lista = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER), 0) +
+            pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+        return lista.firstOrNull { it.loadLabel(pm).toString().contains(nome, ignoreCase = true) }
+    }
+
+    private val cacheIcones = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
+
+    /** Ícone (de preferência o banner de TV) do app instalado, em PNG, para o celular mostrar. */
+    private fun iconeApp(nome: String): ByteArray? {
+        cacheIcones[nome]?.let { return it }
+        val info = acharApp(nome) ?: return null
+        val pm = packageManager
+        val ai = info.activityInfo
+        val banner = ai.loadBanner(pm) ?: pm.getApplicationBanner(ai.applicationInfo)
+        val d = banner ?: ai.loadIcon(pm) ?: return null
+        val (w, h) = if (banner != null) Pair(240, 135) else Pair(96, 96)
+        val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        d.setBounds(0, 0, w, h)
+        d.draw(c)
+        val saida = java.io.ByteArrayOutputStream()
+        bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, saida)
+        return saida.toByteArray().also { cacheIcones[nome] = it }
+    }
+
+    private fun abrirApp(nome: String, con: Servidor.Conexao) {
+        if (nome.isBlank()) return
+        val pm = packageManager
+        val achado = acharApp(nome)
+        if (achado == null) { avisar(con, "$nome não está instalado na TV"); return }
+        val pacote = achado.activityInfo.packageName
+        val i = pm.getLeanbackLaunchIntentForPackage(pacote) ?: pm.getLaunchIntentForPackage(pacote)
+        if (i == null || !abrir(i, con)) avisar(con, "Não consegui abrir $nome")
     }
 
     /** Sempre volta para a tela inicial da TV (launcher). */
@@ -345,6 +510,10 @@ class TouchService : AccessibilityService() {
         when (k) {
             "esc" -> performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
             "win" -> irParaInicio()
+            "up", "down", "left", "right" -> repeat(n) { moverFoco(k) }
+            "ok" -> clicarFocado()
+            "mic" -> abrirBusca(con)
+            "config" -> abrir(Intent(Settings.ACTION_SETTINGS), con)
             "backspace" -> {
                 val campo = campoFocado()
                 if (campo != null) definirTexto(campo, textoAtual(campo).dropLast(n))

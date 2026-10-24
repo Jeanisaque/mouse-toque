@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado por Isaque Andrade e Joel Andrade"
-VERSAO = "1.7"
+VERSAO = "1.8"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -880,6 +880,28 @@ header h1{font-size:17px;margin:0;font-weight:650;flex:1;letter-spacing:.2px}
 #susp-mini{color:var(--warn);font-size:12px}
 body.modo-tv #btn-energia,body.modo-tv [data-pc],body.modo-tv [data-tvx],body.modo-tv .botoes{display:none}
 #tv-ctl{display:none}
+#controle{display:none;flex:1;min-height:0;flex-direction:column;gap:10px;overflow-y:auto;padding-bottom:4px}
+#btn-modo{display:none}
+body.modo-tv #btn-modo{display:block}
+body.modo-tv:not(.modo-mouse) #pad,body.modo-tv:not(.modo-mouse) #tv-ctl{display:none}
+body.modo-tv:not(.modo-mouse) #controle{display:flex}
+body.digitando #controle{display:none}
+.ctl-topo{display:grid;grid-template-columns:3fr 1fr;gap:8px}
+.ctl-topo .tv-btn{height:48px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px}
+.ctl-mic{background:#1d2a44 !important;border-color:#2f4570 !important}
+.dpad{width:min(74vw,290px);aspect-ratio:1/1;margin:2px auto;border-radius:50%;background:#2a2f3a;border:1px solid #363c49;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));flex:none}
+.dpad .dp{height:auto;background:transparent;border:0;border-radius:50%;font-size:22px;color:#c9cfdb}
+.dpad .cima{grid-area:1/2}.dpad .esq{grid-area:2/1}.dpad .dir{grid-area:2/3}.dpad .baixo{grid-area:3/2}
+.dpad .ok{grid-area:2/2;margin:6%;background:#14171d;border:1px solid #363c49;color:#fff;font-size:20px;font-weight:700}
+.dpad .dp.ativo{background:transparent;color:var(--acc)}
+.dpad .ok.ativo{background:var(--acc);color:#fff}
+.apps{display:flex;flex-wrap:wrap;gap:8px}
+.app-btn{flex:1 1 auto;height:40px;padding:0 12px;background:#f1f2f4;color:#14171d;border:0;border-radius:999px;font-size:13.5px;font-weight:700}
+.app-btn:active{background:var(--acc);color:#fff}
+.apps.com-icones{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.apps.com-icones .app-btn{height:auto;aspect-ratio:16/9;border-radius:12px;padding:0 6px}
+.app-btn.icone{height:auto;aspect-ratio:16/9;padding:0;overflow:hidden;border-radius:12px;background:#000}
+.app-btn.icone img{width:100%;height:100%;object-fit:cover;display:block}
 body.modo-tv #tv-ctl{display:flex;flex-direction:column;gap:8px;margin-top:8px}
 body.modo-tv.digitando #tv-ctl{display:none}
 .tv-linha1{display:grid;grid-template-columns:2fr 1fr;gap:8px}
@@ -944,6 +966,39 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
   <button class="icone" id="abrir-config" aria-label="Ajustes">⚙︎</button>
 </header>
 
+<div id="controle">
+  <div class="ctl-topo">
+    <button class="tv-btn ctl-mic" data-acao="mic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg> Falar</button>
+    <button class="tv-btn" data-acao="config" aria-label="Configurações da TV">⚙︎</button>
+  </div>
+  <div class="dpad">
+    <button class="tv-btn dp cima" data-acao="up" data-repete aria-label="Para cima">▲</button>
+    <button class="tv-btn dp esq" data-acao="left" data-repete aria-label="Para a esquerda">◀</button>
+    <button class="tv-btn dp ok" data-acao="ok">OK</button>
+    <button class="tv-btn dp dir" data-acao="right" data-repete aria-label="Para a direita">▶</button>
+    <button class="tv-btn dp baixo" data-acao="down" data-repete aria-label="Para baixo">▼</button>
+  </div>
+  <div class="tv-linha1">
+    <button class="tv-btn tv-voltar" data-acao="esc">← Voltar</button>
+    <button class="tv-btn" data-acao="win">⌂ Início</button>
+  </div>
+  <div class="tv-linha2">
+    <div class="vol-grupo" role="group" aria-label="Volume">
+      <button class="tv-btn" data-acao="voldown" data-repete aria-label="Diminuir volume">Vol −</button>
+      <button class="tv-btn" data-acao="mute">Mudo</button>
+      <button class="tv-btn" data-acao="volup" data-repete aria-label="Aumentar volume">Vol +</button>
+    </div>
+    <button class="tv-btn" data-acao="playpause" aria-label="Tocar ou pausar">⏯︎</button>
+  </div>
+  <div class="apps">
+    <button class="app-btn" data-app="YouTube">YouTube</button>
+    <button class="app-btn" data-app="Netflix">Netflix</button>
+    <button class="app-btn" data-app="Prime Video">Prime Video</button>
+    <button class="app-btn" data-app="Globoplay">Globoplay</button>
+    <button class="app-btn" data-app="Disney">Disney+</button>
+  </div>
+</div>
+
 <div id="pad">
   <div id="fundo"></div>
   <div id="dica">
@@ -977,6 +1032,7 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
 
 <div class="barra">
   <button id="btn-teclado">⌨︎ Teclado</button>
+  <button id="btn-modo">Modo mouse</button>
   <button id="btn-energia">☀︎ Brilho e energia <span id="susp-mini"></span></button>
 </div>
 
@@ -1443,6 +1499,27 @@ document.querySelectorAll(".tv-btn").forEach(function(btn){
   btn.addEventListener("contextmenu", function(e){ e.preventDefault(); });
 });
 
+// ---------- atalhos de apps, microfone e modo mouse ----------
+document.querySelectorAll(".app-btn").forEach(function(btn){
+  btn.addEventListener("click", function(){ vibrar(12); enviar({t:"app", n:btn.dataset.app}); });
+});
+document.querySelector('[data-acao="mic"]').addEventListener("click", function(){
+  // a TV abre a busca; o celular abre o teclado para ditar pelo microfone do teclado
+  setTimeout(function(){
+    if (!painel.classList.contains("aberto")) btnTeclado.click();
+    else campo.focus();
+    window.mtAviso("Toque no microfone do teclado do celular e fale");
+  }, 350);
+});
+function aplicarModoMouse(){
+  document.body.classList.toggle("modo-mouse", !!cfg.mouseTv);
+  el("btn-modo").textContent = cfg.mouseTv ? "Modo controle" : "Modo mouse";
+}
+el("btn-modo").addEventListener("click", function(){
+  cfg.mouseTv = !cfg.mouseTv; gravar("cfg", cfg); aplicarModoMouse(); vibrar(10);
+});
+aplicarModoMouse();
+
 // ---------- modo TV e avisos ----------
 let timerAviso = null;
 window.mtAviso = function(txt){
@@ -1450,7 +1527,25 @@ window.mtAviso = function(txt){
   clearTimeout(timerAviso); timerAviso = setTimeout(function(){ a.classList.remove("mostrar"); }, 2600);
 };
 const dicaOriginal = el("dica").innerHTML;
+// na TV, os botões de apps usam os ícones dos apps instalados na própria TV
+function carregarIcones(){
+  const box = document.querySelector(".apps");
+  if (box.dataset.carregado) return;
+  box.dataset.carregado = "1";
+  let algum = false;
+  document.querySelectorAll(".app-btn").forEach(function(btn){
+    const img = new Image();
+    img.alt = btn.textContent;
+    img.onload = function(){
+      btn.textContent = ""; btn.appendChild(img); btn.classList.add("icone");
+      btn.setAttribute("aria-label", img.alt);
+      if (!algum){ algum = true; box.classList.add("com-icones"); }
+    };
+    img.src = "/icone?n=" + encodeURIComponent(btn.dataset.app);
+  });
+}
 window.mtModo = function(tv){
+  if (tv) carregarIcones();
   document.body.classList.toggle("modo-tv", tv);
   document.querySelector('[data-k="esc"]').textContent = tv ? "Voltar" : "Esc";
   document.querySelector('[data-k="win"]').textContent = tv ? "Início" : "Iniciar";
