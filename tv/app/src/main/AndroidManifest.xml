@@ -20,7 +20,7 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <application
-        android:label="Touch Cell"
+        android:label="Touch Cell TV"
         android:icon="@drawable/icone"
         android:banner="@drawable/banner"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
@@ -44,7 +44,7 @@
         <service
             android:name=".TouchService"
             android:exported="true"
-            android:label="Touch Cell"
+            android:label="Touch Cell TV"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />

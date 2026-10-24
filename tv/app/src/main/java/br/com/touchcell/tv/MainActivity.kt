@@ -63,7 +63,7 @@ class MainActivity : Activity() {
             setBackgroundColor(Color.parseColor("#0F1115"))
             setPadding(dp(48), dp(32), dp(48), dp(24))
         }
-        titulo = rotulo(34f, Color.WHITE, true).apply { text = "Touch Cell" }
+        titulo = rotulo(34f, Color.WHITE, true).apply { text = "Touch Cell TV" }
         texto = rotulo(18f, Color.parseColor("#A9B0BF")).apply { setPadding(0, dp(8), 0, dp(16)) }
         qr = ImageView(this).apply {
             layoutParams = LinearLayout.LayoutParams(dp(180), dp(180))
@@ -196,8 +196,8 @@ class MainActivity : Activity() {
     private fun mostrar() {
         val servico = TouchService.instancia
         if (servico == null) {
-            texto.text = "Falta só um passo: ative o Touch Cell na Acessibilidade da TV.\n" +
-                "Configurações › Preferências do dispositivo › Acessibilidade › Touch Cell › Ativar"
+            texto.text = "Falta só um passo: ative o Touch Cell TV na Acessibilidade da TV.\n" +
+                "Configurações › Preferências do dispositivo › Acessibilidade › Touch Cell TV › Ativar"
             qr.visibility = View.GONE
             endereco.visibility = View.GONE
             estado.visibility = View.GONE
