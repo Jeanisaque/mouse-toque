@@ -139,6 +139,12 @@ class AdbControle(private val ctx: Context) {
         }
     }
 
+    /** Comando de shell avulso (pela depuração). */
+    fun comando(cmd: String) {
+        if (!conectado) return
+        comandos.execute { shell(cmd) {} }
+    }
+
     /** Rolagem com a roda do mouse (só com o ajudante rápido). */
     fun rolarMouse(x: Int, y: Int, v: Int, h: Int) {
         comandos.execute { escrever("s $x $y $v $h") }

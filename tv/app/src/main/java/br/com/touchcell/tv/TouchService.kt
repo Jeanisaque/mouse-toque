@@ -565,11 +565,26 @@ class TouchService : AccessibilityService() {
         avisarDesligar()
     }
 
+    /** Tenta desligar de vários jeitos, conferindo se a tela realmente apagou. */
     private fun desligarAgora() {
-        // tecla Power de verdade (Controle completo); sem ele, bloqueia/apaga a tela
-        teclaReal(KeyEvent.KEYCODE_POWER, 1) {
-            if (Build.VERSION.SDK_INT >= 28) performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
+        val pm = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        val tentativas = listOf<() -> Unit>(
+            { teclaReal(KeyEvent.KEYCODE_SLEEP, 1) {} },
+            { teclaReal(KeyEvent.KEYCODE_POWER, 1) {} },
+            { adb?.comando("input keyevent 223; input keyevent 26") },
+            { if (Build.VERSION.SDK_INT >= 28) performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN) }
+        )
+        fun passo(i: Int) {
+            if (!pm.isInteractive) return                 // já desligou
+            if (i >= tentativas.size) {
+                android.widget.Toast.makeText(this, "Touch Cell TV: não consegui desligar a TV", android.widget.Toast.LENGTH_LONG).show()
+                servidor?.avisarTodos(JSONObject().put("t", "aviso").put("s", "A TV não aceitou o comando de desligar"))
+                return
+            }
+            tentativas[i]()
+            main.postDelayed({ passo(i + 1) }, 3000)
         }
+        passo(0)
     }
 
     /** Sempre volta para a tela inicial da TV (launcher). */
