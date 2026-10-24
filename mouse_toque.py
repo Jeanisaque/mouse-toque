@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado por Isaque Andrade e Joel Andrade"
-VERSAO = "1.9"
+VERSAO = "1.10"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -896,6 +896,7 @@ body.digitando #controle{display:none}
 .dpad .dp.ativo{background:transparent;color:var(--acc)}
 .dpad .ok.ativo{background:var(--acc);color:#fff}
 .apps{display:flex;flex-wrap:wrap;gap:8px}
+.ctl-espaco{flex:1;min-height:0}
 .app-btn{flex:1 1 auto;height:40px;padding:0 12px;background:#f1f2f4;color:#14171d;border:0;border-radius:999px;font-size:13.5px;font-weight:700}
 .app-btn:active{background:var(--acc);color:#fff}
 .apps.com-icones{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -967,21 +968,18 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
 </header>
 
 <div id="controle">
+  <div class="apps">
+    <button class="app-btn" data-app="YouTube">YouTube</button>
+    <button class="app-btn" data-app="Netflix">Netflix</button>
+    <button class="app-btn" data-app="Prime Video">Prime Video</button>
+    <button class="app-btn" data-app="Globoplay">Globoplay</button>
+    <button class="app-btn" data-app="Disney">Disney+</button>
+  </div>
   <div class="ctl-topo">
     <button class="tv-btn ctl-mic" data-acao="mic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0"></path><path d="M12 18v3"></path></svg> Falar</button>
     <button class="tv-btn" data-acao="config" aria-label="Configurações da TV">⚙︎</button>
   </div>
-  <div class="dpad">
-    <button class="tv-btn dp cima" data-acao="up" data-repete aria-label="Para cima">▲</button>
-    <button class="tv-btn dp esq" data-acao="left" data-repete aria-label="Para a esquerda">◀</button>
-    <button class="tv-btn dp ok" data-acao="ok">OK</button>
-    <button class="tv-btn dp dir" data-acao="right" data-repete aria-label="Para a direita">▶</button>
-    <button class="tv-btn dp baixo" data-acao="down" data-repete aria-label="Para baixo">▼</button>
-  </div>
-  <div class="tv-linha1">
-    <button class="tv-btn tv-voltar" data-acao="esc">← Voltar</button>
-    <button class="tv-btn" data-acao="win">⌂ Início</button>
-  </div>
+  <div class="ctl-espaco"></div>
   <div class="tv-linha2">
     <div class="vol-grupo" role="group" aria-label="Volume">
       <button class="tv-btn" data-acao="voldown" data-repete aria-label="Diminuir volume">Vol −</button>
@@ -990,12 +988,16 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
     </div>
     <button class="tv-btn" data-acao="playpause" aria-label="Tocar ou pausar">⏯︎</button>
   </div>
-  <div class="apps">
-    <button class="app-btn" data-app="YouTube">YouTube</button>
-    <button class="app-btn" data-app="Netflix">Netflix</button>
-    <button class="app-btn" data-app="Prime Video">Prime Video</button>
-    <button class="app-btn" data-app="Globoplay">Globoplay</button>
-    <button class="app-btn" data-app="Disney">Disney+</button>
+  <div class="tv-linha1">
+    <button class="tv-btn tv-voltar" data-acao="esc">← Voltar</button>
+    <button class="tv-btn" data-acao="win">⌂ Início</button>
+  </div>
+  <div class="dpad">
+    <button class="tv-btn dp cima" data-acao="up" data-repete aria-label="Para cima">▲</button>
+    <button class="tv-btn dp esq" data-acao="left" data-repete aria-label="Para a esquerda">◀</button>
+    <button class="tv-btn dp ok" data-acao="ok">OK</button>
+    <button class="tv-btn dp dir" data-acao="right" data-repete aria-label="Para a direita">▶</button>
+    <button class="tv-btn dp baixo" data-acao="down" data-repete aria-label="Para baixo">▼</button>
   </div>
 </div>
 
