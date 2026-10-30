@@ -3,9 +3,13 @@ package br.com.touchcell.celular
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.DatagramPacket
+import java.net.DatagramSocket
 import java.net.HttpURLConnection
 import java.net.Inet4Address
+import java.net.InetAddress
 import java.net.NetworkInterface
+import java.net.SocketTimeoutException
 import java.net.URL
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -23,6 +27,7 @@ data class Aparelho(val ip: String, val porta: Int, val nome: String, val tipo: 
 /** Procura aparelhos na rede Wi-Fi e guarda os que já foram usados. */
 object Descoberta {
     const val PORTA = 8765
+    const val PORTA_BUSCA = 8799
 
     fun meuIp(): String? = try {
         val lista = NetworkInterface.getNetworkInterfaces().toList().filter { it.isUp && !it.isLoopback }
@@ -42,9 +47,42 @@ object Descoberta {
         }
     } catch (e: Exception) { null }
 
-    /** Varre a rede (x.x.x.1 a x.x.x.254). Roda fora da thread principal. */
+    /** Pergunta "tem Touch Cell aí?" para a rede toda de uma vez (UDP). O PC 1.13+ responde na hora. */
+    private fun perguntarNaRede(meu: String, tipo: String, aoAchar: (Aparelho) -> Unit) {
+        val s = try { DatagramSocket() } catch (e: Exception) { return }
+        try {
+            s.broadcast = true
+            s.soTimeout = 400
+            val msg = "touchcell?".toByteArray()
+            val alvos = listOf("255.255.255.255", meu.substringBeforeLast(".") + ".255")
+            val vistos = HashSet<String>()
+            val fim = System.currentTimeMillis() + 2000
+            var proximoEnvio = 0L
+            while (System.currentTimeMillis() < fim) {
+                if (System.currentTimeMillis() >= proximoEnvio) {
+                    for (a in alvos) try { s.send(DatagramPacket(msg, msg.size, InetAddress.getByName(a), PORTA_BUSCA)) } catch (_: Exception) {}
+                    proximoEnvio = System.currentTimeMillis() + 600
+                }
+                val p = DatagramPacket(ByteArray(1024), 1024)
+                val recebeu = try { s.receive(p); true } catch (_: SocketTimeoutException) { false }
+                if (!recebeu) continue
+                val a = try {
+                    val j = JSONObject(String(p.data, 0, p.length))
+                    val ip = p.address.hostAddress
+                    if (ip != null && j.optString("app") == "touchcell" && j.optString("tipo") == tipo)
+                        Aparelho(ip, j.optInt("porta", PORTA), j.optString("nome", ip), tipo)
+                    else null
+                } catch (_: Exception) { null }
+                if (a != null && vistos.add(a.ip)) aoAchar(a)
+            }
+        } catch (_: Exception) {
+        } finally { s.close() }
+    }
+
+    /** Pergunta pra rede e varre os endereços (x.x.x.1 a x.x.x.254). Roda fora da thread principal. */
     fun procurar(tipo: String, aoAchar: (Aparelho) -> Unit) {
         val meu = meuIp() ?: return
+        val busca = Thread { perguntarNaRede(meu, tipo, aoAchar) }.apply { start() }
         val prefixo = meu.substringBeforeLast(".") + "."
         val pool = Executors.newFixedThreadPool(48)
         for (i in 1..254) {
@@ -58,6 +96,15 @@ object Descoberta {
         }
         pool.shutdown()
         pool.awaitTermination(15, TimeUnit.SECONDS)
+        busca.join(3000)
+    }
+
+    /** O último aparelho mudou de endereço (outro Wi-Fi)? Procura pelo mesmo nome. Para no primeiro que achar. */
+    fun reencontrar(antigo: Aparelho): Aparelho? {
+        val meu = meuIp() ?: return null
+        var achado: Aparelho? = null
+        perguntarNaRede(meu, antigo.tipo) { a -> if (achado == null && a.nome == antigo.nome) achado = a }
+        return achado
     }
 
     // ---- aparelhos salvos ----

@@ -125,16 +125,18 @@ class InicioActivity : Activity() {
     }
 
     private fun tentarUltimo() {
-        val ultimo = Descoberta.salvos(this).firstOrNull()
-        if (ultimo == null) { procurar(); return }
+        val ultimo = Descoberta.salvos(this).firstOrNull { it.tipo == tipo }
+        if (ultimo == null) { procurar(automatico = true); return }
         estado.text = "Conectando em ${ultimo.nome}…"; girando.visibility = View.VISIBLE
         thread {
-            val ok = Descoberta.info(ultimo.ip, ultimo.porta, 1500)
-            runOnUiThread { if (ok != null) abrir(ok) else procurar() }
+            // mesmo endereço de antes; se não responder (outro Wi-Fi), procura pelo nome
+            val ok = Descoberta.info(ultimo.ip, ultimo.porta, 1500) ?: Descoberta.reencontrar(ultimo)
+            runOnUiThread { if (ok != null) abrir(ok) else procurar(automatico = true) }
         }
     }
 
-    private fun procurar() {
+    /** automatico: se achar um aparelho só, já conecta sem precisar tocar. */
+    private fun procurar(automatico: Boolean = false) {
         if (procurando) return
         procurando = true
         girando.visibility = View.VISIBLE
@@ -144,8 +146,10 @@ class InicioActivity : Activity() {
             runOnUiThread {
                 procurando = false
                 girando.visibility = View.GONE
+                if (automatico && achados.size == 1) { abrir(achados.values.first()); return@runOnUiThread }
                 estado.text = if (achados.isEmpty())
-                    "Nenhum${if (tipo == "tv") "a TV" else " PC"} encontrad${if (tipo == "tv") "a" else "o"}. Confira se o Touch Cell está aberto e no mesmo Wi-Fi."
+                    "Nenhum${if (tipo == "tv") "a TV" else " PC"} encontrad${if (tipo == "tv") "a" else "o"}. Confira se o Touch Cell está aberto e no mesmo Wi-Fi." +
+                        if (tipo == "pc") "\n\nNo PC, clique em \"Liberar no Firewall\" na página do Touch Cell." else ""
                 else "Toque para conectar:"
             }
         }

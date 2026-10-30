@@ -34,11 +34,12 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado pelos irmãos Joel Andrade e Isaque Andrade"
-VERSAO = "1.12"
+VERSAO = "1.13"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
 PORTA_PADRAO = 8765
+PORTA_BUSCA = 8799      # UDP: o app do celular pergunta "tem Touch Cell aí?"
 PASTA = os.path.dirname(os.path.abspath(__file__))
 ARQ_CONFIG = os.path.join(PASTA, "mouse_toque_config.json")
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -523,6 +524,7 @@ class Servidor(socketserver.ThreadingTCPServer):
         super().__init__(endereco, Atendente)
         self.executor, self.codigo, self.url = executor, codigo, url
         self.energia = energia
+        self.porta = endereco[1]
         self.conectados = 0
         self.conexoes = set()
         self.trava = threading.Lock()
@@ -593,14 +595,23 @@ class Atendente(socketserver.BaseRequestHandler):
         elif rota == "/info":
             # usado pelo app Touch Cell do celular para achar o PC na rede
             self.responder(200, "application/json", json.dumps(
-                {"app": "touchcell", "tipo": "pc", "nome": socket.gethostname(), "versao": VERSAO}))
+                {"app": "touchcell", "tipo": "pc", "nome": socket.gethostname(), "versao": VERSAO,
+                 "porta": self.server.porta}))
         elif rota == "/pc" and local:
             pagina = (PAGINA_PC.replace("{{URL}}", self.server.url)
                       .replace("{{CODIGO}}", self.server.codigo))
             self.responder(200, "text/html; charset=utf-8", pagina)
         elif rota == "/status" and local:
             self.responder(200, "application/json",
-                           json.dumps({"conectados": self.server.conectados}))
+                           json.dumps({"conectados": self.server.conectados,
+                                       "ip": ip_local(), "porta": self.server.porta}))
+        elif rota == "/firewall" and local:
+            self.responder(200, "application/json", json.dumps({"ok": firewall_liberado()}))
+        elif rota == "/firewall/liberar" and local:
+            ok = liberar_firewall(self.server.porta)
+            if ok:
+                print("  ✓ Touch Cell liberado no Firewall do Windows.")
+            self.responder(200, "application/json", json.dumps({"ok": ok}))
         else:
             self.responder(404, "text/plain; charset=utf-8", "Não encontrado")
 
@@ -690,23 +701,107 @@ def ip_local():
         s.close()
 
 
-def carregar_codigo(novo=False):
-    cfg = {}
+def ler_config():
     try:
         with open(ARQ_CONFIG, encoding="utf-8") as f:
-            cfg = json.load(f)
+            return json.load(f)
     except (OSError, ValueError):
+        return {}
+
+
+def salvar_config(cfg):
+    try:
+        with open(ARQ_CONFIG, "w", encoding="utf-8") as f:
+            json.dump(cfg, f)
+    except OSError:
         pass
+
+
+def carregar_codigo(novo=False):
+    cfg = ler_config()
     codigo = str(cfg.get("codigo", ""))
     if novo or not (codigo.isdigit() and len(codigo) == 4):
         codigo = f"{random.SystemRandom().randint(0, 9999):04d}"
         cfg["codigo"] = codigo
-        try:
-            with open(ARQ_CONFIG, "w", encoding="utf-8") as f:
-                json.dump(cfg, f)
-        except OSError:
-            pass
+        salvar_config(cfg)
     return codigo
+
+
+# ---------------------------------------------------------------------------
+# Firewall do Windows e busca pelo celular
+# ---------------------------------------------------------------------------
+
+def _nome_regra():
+    # um nome por Python (o portátil e o instalado são programas diferentes pro Firewall)
+    h = hashlib.sha1(os.path.normcase(sys.executable).encode("utf-8")).hexdigest()[:6]
+    return f"Touch Cell {h}"
+
+
+def firewall_liberado():
+    """True se a regra do Touch Cell já existe. None se não for Windows."""
+    if sys.platform != "win32":
+        return None
+    try:
+        r = subprocess.run(["netsh", "advfirewall", "firewall", "show", "rule",
+                            "name=" + _nome_regra()], capture_output=True, timeout=8,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def liberar_firewall(porta):
+    """Pede permissão de administrador (UAC) e libera o Touch Cell em todas as redes.
+    Também apaga os bloqueios que o Windows cria quando alguém clica em Cancelar no aviso."""
+    if sys.platform != "win32":
+        return False
+    import ctypes
+    exe = sys.executable.replace("'", "''")
+    nome = _nome_regra()
+    script = "\n".join([
+        "$ErrorActionPreference = 'SilentlyContinue'",
+        f"Get-NetFirewallApplicationFilter -Program '{exe}' | Get-NetFirewallRule | Where-Object Direction -eq Inbound | Remove-NetFirewallRule",
+        f"Remove-NetFirewallRule -Name '{nome}*'",
+        f"New-NetFirewallRule -Name '{nome} a' -DisplayName '{nome}' -Direction Inbound -Action Allow -Program '{exe}' -Profile Any",
+        f"New-NetFirewallRule -Name '{nome} t' -DisplayName '{nome}' -Direction Inbound -Action Allow -Protocol TCP -LocalPort {porta}-{porta + 9} -Profile Any",
+        f"New-NetFirewallRule -Name '{nome} u' -DisplayName '{nome}' -Direction Inbound -Action Allow -Protocol UDP -LocalPort {PORTA_BUSCA} -Profile Any",
+    ])
+    cod = base64.b64encode(script.encode("utf-16-le")).decode()
+    r = ctypes.windll.shell32.ShellExecuteW(
+        None, "runas", "powershell.exe",
+        f"-NoProfile -WindowStyle Hidden -EncodedCommand {cod}", None, 0)
+    if r <= 32:          # o usuário clicou em "Não" no aviso do Windows
+        return False
+    for _ in range(20):  # espera a regra aparecer
+        time.sleep(0.5)
+        if firewall_liberado():
+            return True
+    return False
+
+
+def responder_busca(porta, parar):
+    """Responde ao app do celular que pergunta 'tem Touch Cell aí?' pela rede (UDP)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.bind(("0.0.0.0", PORTA_BUSCA))
+    except OSError:
+        return
+    s.settimeout(1)
+    resposta = json.dumps({"app": "touchcell", "tipo": "pc", "nome": socket.gethostname(),
+                           "versao": VERSAO, "porta": porta}).encode()
+    while not parar.is_set():
+        try:
+            dados, de = s.recvfrom(512)
+        except socket.timeout:
+            continue
+        except OSError:
+            break
+        if dados.startswith(b"touchcell?"):
+            try:
+                s.sendto(resposta, de)
+            except OSError:
+                pass
+    s.close()
 
 
 # ---------------------------------------------------------------------------
@@ -816,11 +911,26 @@ def main(argv=None):
     print()
     print(f"  Código de acesso: {codigo}")
     print()
-    print("  Se o Windows perguntar sobre o Firewall, marque")
-    print("  'Redes privadas' e clique em Permitir.")
+    print("  No app Touch Cell do celular, o PC aparece sozinho.")
     print()
     print("  Para encerrar, feche esta janela ou aperte Ctrl+C.")
     print(linha)
+
+    parar = threading.Event()
+    threading.Thread(target=responder_busca, args=(porta, parar), daemon=True).start()
+
+    if not teste and firewall_liberado() is False:
+        cfg = ler_config()
+        if not cfg.get("firewall_recusado"):
+            def pedir():
+                print("\n  Liberando o Touch Cell no Firewall do Windows...")
+                print("  Clique em SIM na janela do Windows que vai aparecer.")
+                if liberar_firewall(porta):
+                    print("  ✓ Pronto! O celular já consegue achar o PC em qualquer Wi-Fi.\n")
+                else:
+                    print("  Não foi liberado. Dá pra fazer depois pelo botão na página do PC.\n")
+                    c = ler_config(); c["firewall_recusado"] = True; salvar_config(c)
+            threading.Thread(target=pedir, daemon=True).start()
 
     if "--sem-navegador" not in argv:
         threading.Timer(0.8, lambda: webbrowser.open(f"http://127.0.0.1:{porta}/pc")).start()
@@ -830,6 +940,7 @@ def main(argv=None):
     except KeyboardInterrupt:
         print("\n  Encerrado. Até mais!")
     finally:
+        parar.set()
         servidor.server_close()
 
 
@@ -1698,6 +1809,12 @@ h1{margin:0 0 6px;font-size:26px}
 .dot{width:10px;height:10px;border-radius:50%;background:#f5b041}
 .estado.ok{color:var(--ok)}.estado.ok .dot{background:var(--ok)}
 .passos{text-align:left;color:var(--sub);font-size:14px;line-height:1.7;margin:26px 0 0;padding-left:20px}
+.fw{margin-top:22px;padding:14px 16px;border-radius:14px;border:1px solid var(--borda);background:#0f1115;font-size:14.5px;color:var(--sub);text-align:left;display:none}
+.fw.ok{display:block;border-color:#1f5c3a;color:var(--ok)}
+.fw.nao{display:block;border-color:#6b4f1d}
+.fw b{color:var(--txt)}
+.fw button{margin-top:10px;width:100%;padding:12px;border:0;border-radius:10px;background:var(--acc);color:#fff;font-size:15.5px;font-weight:600;cursor:pointer}
+.fw button:disabled{opacity:.6;cursor:wait}
 .creditos{margin-top:26px;padding-top:18px;border-top:1px solid var(--borda);color:var(--sub);font-size:13.5px}
 .creditos b{color:var(--txt)}
 </style>
@@ -1707,22 +1824,60 @@ h1{margin:0 0 6px;font-size:26px}
   <h1>Touch Cell</h1>
   <p class="sub">Aponte a câmera do celular para o código</p>
   <div id="qr"></div>
-  <div class="url">{{URL}}</div>
+  <div class="url" id="url">{{URL}}</div>
   <div class="codigo">Código de acesso:<b>{{CODIGO}}</b></div>
   <div class="estado" id="estado"><span class="dot"></span><span id="estado-txt">Esperando o celular…</span></div>
+  <div class="fw" id="fw"></div>
   <ol class="passos">
     <li>Deixe o celular no <b>mesmo Wi-Fi</b> do PC.</li>
-    <li>Leia o QR code ou digite o endereço no navegador do celular.</li>
+    <li>No app <b>Touch Cell PC</b> do celular, o PC aparece sozinho. Sem o app, leia o QR code.</li>
     <li>Dica: use "Adicionar à tela inicial" para abrir como app.</li>
   </ol>
   <div class="creditos">Criado pelos irmãos <b>Joel Andrade</b> e <b>Isaque Andrade</b></div>
 </div>
 <script>
-try { new QRCode(document.getElementById("qr"), {text:"{{URL}}", width:220, height:220, correctLevel:QRCode.CorrectLevel.M}); }
-catch(e){ document.getElementById("qr").style.display = "none"; }
+let urlAtual = "";
+function desenharQR(url){
+  if (url === urlAtual) return;
+  urlAtual = url;
+  document.getElementById("url").textContent = url;
+  const qr = document.getElementById("qr"); qr.innerHTML = "";
+  try { new QRCode(qr, {text:url, width:220, height:220, correctLevel:QRCode.CorrectLevel.M}); }
+  catch(e){ qr.style.display = "none"; }
+}
+desenharQR("{{URL}}");
+
+const fw = document.getElementById("fw");
+function mostrarFirewall(ok){
+  if (ok === null){ fw.className = "fw"; return; }
+  if (ok){
+    fw.className = "fw ok";
+    fw.innerHTML = "✓ Liberado no Firewall do Windows. Funciona em qualquer Wi-Fi.";
+  } else {
+    fw.className = "fw nao";
+    fw.innerHTML = "<b>O celular não acha o PC?</b> O Firewall do Windows pode estar bloqueando, principalmente depois de trocar de Wi-Fi." +
+      "<button id='fw-btn'>Liberar no Firewall</button>";
+    document.getElementById("fw-btn").onclick = liberar;
+  }
+}
+async function liberar(){
+  const b = document.getElementById("fw-btn");
+  b.disabled = true; b.textContent = "Clique em SIM na janela do Windows…";
+  try{
+    const d = await (await fetch("/firewall/liberar", {cache:"no-store"})).json();
+    if (d.ok) mostrarFirewall(true);
+    else { b.disabled = false; b.textContent = "Não liberou. Tentar de novo"; }
+  }catch(e){ b.disabled = false; b.textContent = "Liberar no Firewall"; }
+}
+async function verFirewall(){
+  try{ mostrarFirewall((await (await fetch("/firewall", {cache:"no-store"})).json()).ok); }catch(e){}
+}
+verFirewall(); setInterval(verFirewall, 15000);
+
 async function verificar(){
   try{
     const r = await fetch("/status", {cache:"no-store"}); const d = await r.json();
+    if (d.ip && d.ip !== "127.0.0.1") desenharQR("http://" + d.ip + ":" + d.porta + "/?k={{CODIGO}}");
     const ok = d.conectados > 0;
     document.getElementById("estado").classList.toggle("ok", ok);
     document.getElementById("estado-txt").textContent = ok ? "Celular conectado!" : "Esperando o celular…";
