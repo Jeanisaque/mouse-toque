@@ -37,6 +37,13 @@ class TouchService : AccessibilityService() {
     companion object {
         @Volatile var instancia: TouchService? = null
             private set
+
+        /** Tenta cada tecla de energia e para na primeira que realmente apagar a tela (ok = tecla que funcionou). */
+        private const val APAGAR_TELA =
+            "acordada(){ dumpsys power | grep -q 'mWakefulness=Awake'; }; ok=''; " +
+            "for k in 177 26 223; do input keyevent \$k; sleep 3; if ! acordada; then ok=\$k; break; fi; done"
+        private const val ACENDER_TELA =
+            "input keyevent 224; sleep 2; acordada || input keyevent \$ok; sleep 2; acordada || input keyevent 26"
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -583,6 +590,19 @@ class TouchService : AccessibilityService() {
 
     /** Tenta desligar de vários jeitos, conferindo se a tela realmente apagou. */
     private fun desligarAgora() {
+        val a = adb
+        if (a != null && a.conectado) {
+            // pela depuração: testa TV Power, Power e Dormir, conferindo se a tela apagou;
+            // se a TV ignorar todas, desliga o sistema (como tirar da tomada, mas com segurança)
+            servidor?.avisarTodos(JSONObject().put("t", "aviso").put("s", "Desligando a TV…"))
+            a.executar(APAGAR_TELA + "; echo \"tecla=\$ok\"") { saida ->
+                val tecla = Regex("tecla=(\\S*)").find(saida ?: "")?.groupValues?.get(1).orEmpty()
+                if (tecla.isNotEmpty()) return@executar
+                servidor?.avisarTodos(JSONObject().put("t", "aviso").put("s", "A TV ignorou as teclas; desligando pelo sistema…"))
+                a.comando("svc power shutdown")
+            }
+            return
+        }
         val pm = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
         val tentativas = listOf<() -> Unit>(
             { teclaReal(KeyEvent.KEYCODE_SLEEP, 1) {} },
@@ -618,9 +638,16 @@ class TouchService : AccessibilityService() {
             con.enviar(JSONObject().put("t", "aviso").put("s", "Precisa do Controle completo ativo na TV").toString())
             return
         }
-        con.enviar(JSONObject().put("t", "aviso").put("s", "Reiniciando a imagem… (uns 4 segundos)").toString())
-        a.comando("input keyevent 223; sleep 3; input keyevent 224")
+        con.enviar(JSONObject().put("t", "aviso").put("s", "Reiniciando a imagem… (até 15 segundos)").toString())
+        a.executar(APAGAR_TELA + "; if [ -n \"\$ok\" ]; then sleep 2; " + ACENDER_TELA + "; fi; echo \"tecla=\$ok\"") { saida ->
+            val tecla = Regex("tecla=(\\S*)").find(saida ?: "")?.groupValues?.get(1).orEmpty()
+            val txt = if (tecla.isEmpty()) "A TV ignorou as teclas de energia (testei TV Power, Power e Dormir)"
+                      else "Imagem reiniciada (tecla ${nomeTecla(tecla)})"
+            servidor?.avisarTodos(JSONObject().put("t", "aviso").put("s", txt))
+        }
     }
+
+    private fun nomeTecla(k: String) = when (k) { "177" -> "TV Power"; "26" -> "Power"; "223" -> "Dormir"; else -> k }
 
     /** Sempre volta para a tela inicial da TV (launcher). */
     private fun irParaInicio() {
