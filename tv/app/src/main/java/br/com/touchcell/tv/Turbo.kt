@@ -65,10 +65,28 @@ class Turbo(private val ctx: Context, private val adb: () -> AdbControle?) {
         val base = JSONObject().put("t", "turbo").put("adb", ligado).put("mem", memoria())
         val a = adb()
         if (a == null || !a.conectado) { responder(base.put("apps", apps())); return }
-        a.executar("settings get global animator_duration_scale") { s ->
-            val v = s?.trim()?.toFloatOrNull() ?: 1f
-            responder(base.put("anim", v.toDouble()).put("apps", apps()))
+        a.executar("settings get global animator_duration_scale; settings get secure screensaver_enabled") { s ->
+            val linhas = s?.lines()?.map { it.trim() } ?: emptyList()
+            val v = linhas.getOrNull(0)?.toFloatOrNull() ?: 1f
+            val protecao = linhas.getOrNull(1) != "0"      // "null" ou "1" = ligada
+            responder(base.put("anim", v.toDouble()).put("protecao", protecao).put("apps", apps()))
         }
+    }
+
+    /**
+     * Proteção de tela e Modo ambiente (o "papel de parede" que aparece quando pausa um vídeo).
+     * Além da configuração, liga/desliga os apps que mostram as fotos (Backdrop, Modo ambiente,
+     * proteção de tela da marca), achados pelo nome do pacote.
+     */
+    fun protecao(ligada: Boolean, depois: () -> Unit) {
+        val v = if (ligada) 1 else 0
+        val acao = if (ligada) "pm enable \$p" else "am force-stop \$p; pm disable-user --user 0 \$p"
+        adb()?.executar(
+            "settings put secure screensaver_enabled $v; " +
+            "settings put secure screensaver_activate_on_sleep $v; " +
+            "settings put secure screensaver_activate_on_dock $v; " +
+            "for p in \$(pm list packages | grep -iE 'backdrop|screensaver|dreamx|ambient' | cut -d: -f2); do $acao; done"
+        ) { depois() } ?: depois()
     }
 
     fun animacoes(escala: Float, depois: () -> Unit) {

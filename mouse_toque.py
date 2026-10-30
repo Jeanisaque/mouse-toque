@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado pelos irmãos Joel Andrade e Isaque Andrade"
-VERSAO = "1.14"
+VERSAO = "1.15"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -996,7 +996,9 @@ header h1{font-size:17px;margin:0;font-weight:650;flex:1;letter-spacing:.2px}
 body.modo-tv #tv-desligar,body.modo-tv #tv-turbo{display:block}
 .turbo-grande{width:100%;height:48px;margin:2px 0 6px;font-size:15px}
 .turbo-anim{grid-template-columns:repeat(3,minmax(0,1fr))}
-.tanim.sel{background:var(--acc);border-color:var(--acc);color:#fff}
+.tanim.sel,.tprot.sel{background:var(--acc);border-color:var(--acc);color:#fff}
+.turbo-prot{grid-template-columns:repeat(2,minmax(0,1fr))}
+#tv-turbo.sem-adb .tprot{opacity:.45;pointer-events:none}
 #turbo-apps .linha{gap:10px}
 #turbo-apps .linha span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #turbo-apps .linha.off span{color:var(--sub);text-decoration:line-through}
@@ -1240,6 +1242,12 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
         <button class="mini tanim" data-v="0.5">Rápidas</button>
         <button class="mini tanim" data-v="0">Desligadas</button>
       </div>
+      <div class="linha"><span>Papel de parede e Modo ambiente</span></div>
+      <div class="susp-grade turbo-anim turbo-prot">
+        <button class="mini tprot" data-on="1">Ligado</button>
+        <button class="mini tprot" data-on="0">Desligado</button>
+      </div>
+      <p class="dica-susp">Desligado, a TV não sai mais do vídeo pausado pra mostrar fotos (proteção de tela e Modo ambiente).</p>
       <h3 class="subtitulo">Apps da TV</h3>
       <p class="dica-susp">Desative os apps que você não usa: eles param de rodar escondidos e a TV fica mais leve. Dá pra reativar quando quiser.</p>
       <div id="turbo-apps"></div>
@@ -1690,6 +1698,9 @@ window.mtTurbo = function(m){
   document.querySelectorAll(".tanim").forEach(function(b){
     b.classList.toggle("sel", m.anim !== undefined && Math.abs(parseFloat(b.dataset.v) - m.anim) < 0.01);
   });
+  document.querySelectorAll(".tprot").forEach(function(b){
+    b.classList.toggle("sel", m.protecao !== undefined && (b.dataset.on === "1") === !!m.protecao);
+  });
   const caixa = el("turbo-apps"); caixa.innerHTML = "";
   (m.apps || []).forEach(function(a){
     const linha = document.createElement("div"); linha.className = "linha" + (a.on ? "" : " off");
@@ -1707,6 +1718,13 @@ document.querySelectorAll(".tanim").forEach(function(b){
   b.addEventListener("click", function(){
     vibrar(15); enviar({t:"turbo_anim", v:parseFloat(b.dataset.v)});
     window.mtAviso(b.dataset.v === "1" ? "Animações normais" : b.dataset.v === "0" ? "Animações desligadas: a TV fica mais ágil" : "Animações rápidas");
+  });
+});
+document.querySelectorAll(".tprot").forEach(function(b){
+  b.addEventListener("click", function(){
+    const on = b.dataset.on === "1";
+    vibrar(15); enviar({t:"turbo_protecao", on:on});
+    window.mtAviso(on ? "Papel de parede ligado" : "Papel de parede desligado: o vídeo pausado fica na tela");
   });
 });
 el("turbo-limpar").addEventListener("click", function(){

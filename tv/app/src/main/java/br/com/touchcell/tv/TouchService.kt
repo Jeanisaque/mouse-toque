@@ -210,6 +210,9 @@ class TouchService : AccessibilityService() {
             "turbo_anim" -> turbo.animacoes(msg.optDouble("v", 1.0).toFloat()) {
                 turbo.estado { con.enviar(it.toString()) }
             }
+            "turbo_protecao" -> turbo.protecao(msg.optBoolean("on")) {
+                turbo.estado { con.enviar(it.toString()) }
+            }
             "turbo_limpar" -> turbo.limpar { txt ->
                 con.enviar(JSONObject().put("t", "aviso").put("s", txt).toString())
                 turbo.estado { con.enviar(it.toString()) }
