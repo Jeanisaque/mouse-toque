@@ -608,6 +608,20 @@ class TouchService : AccessibilityService() {
         passo(0)
     }
 
+    /**
+     * Apaga a tela e acende de novo (para quando a imagem some mas o som continua).
+     * Tudo roda dentro da TV num comando só, então funciona mesmo se a rede cair no meio.
+     */
+    private fun reiniciarTela(con: Servidor.Conexao) {
+        val a = adb
+        if (a == null || !a.conectado) {
+            con.enviar(JSONObject().put("t", "aviso").put("s", "Precisa do Controle completo ativo na TV").toString())
+            return
+        }
+        con.enviar(JSONObject().put("t", "aviso").put("s", "Reiniciando a imagem… (uns 4 segundos)").toString())
+        a.comando("input keyevent 223; sleep 3; input keyevent 224")
+    }
+
     /** Sempre volta para a tela inicial da TV (launcher). */
     private fun irParaInicio() {
         try {
@@ -667,6 +681,7 @@ class TouchService : AccessibilityService() {
             "ok" -> { teclaReal(KeyEvent.KEYCODE_DPAD_CENTER, 1) { clicarFocado() }; som("ok") }
             "mic" -> abrirBusca(con)
             "config" -> abrir(Intent(Settings.ACTION_SETTINGS), con)
+            "tela" -> reiniciarTela(con)
             "backspace" -> {
                 val campo = campoFocado()
                 if (campo != null) definirTexto(campo, textoAtual(campo).dropLast(n))

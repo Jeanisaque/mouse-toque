@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado pelos irmãos Joel Andrade e Isaque Andrade"
-VERSAO = "1.15"
+VERSAO = "1.16"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -1020,6 +1020,9 @@ body.modo-tv:not(.modo-mouse) #pad,body.modo-tv:not(.modo-mouse) #tv-ctl{display
 body.modo-tv:not(.modo-mouse) #controle{display:flex}
 body.digitando #controle{display:none}
 .ctl-topo{display:grid;grid-template-columns:3fr 1fr;gap:8px}
+#tv-power{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:42px;border-radius:14px;border:1px solid #5c2a2a;background:#2a1717;color:#ff8a80;font-size:15px;font-weight:600;flex:none}
+#tv-power.confirmar{background:var(--err);border-color:var(--err);color:#fff}
+.turbo-tela{margin-top:14px}
 .ctl-topo .tv-btn{height:48px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px}
 .ctl-mic{background:#1d2a44 !important;border-color:#2f4570 !important}
 .dpad{width:min(78vw,300px);aspect-ratio:1/1;margin:2px auto;border-radius:50%;background:#2a2f3a;border:1px solid #363c49;display:grid;grid-template-columns:1fr 1.5fr 1fr;grid-template-rows:1fr 1.5fr 1fr;flex:none}
@@ -1101,6 +1104,7 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
 </header>
 
 <div id="controle">
+  <button id="tv-power" aria-label="Desligar a TV"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"></path><path d="M6.3 6.3a8 8 0 1 0 11.4 0"></path></svg><span id="tv-power-txt">Desligar a TV</span></button>
   <div class="apps">
     <button class="app-btn" data-app="YouTube">YouTube</button>
     <button class="app-btn" data-app="Netflix">Netflix</button>
@@ -1251,6 +1255,9 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
       <h3 class="subtitulo">Apps da TV</h3>
       <p class="dica-susp">Desative os apps que você não usa: eles param de rodar escondidos e a TV fica mais leve. Dá pra reativar quando quiser.</p>
       <div id="turbo-apps"></div>
+      <h3 class="subtitulo turbo-tela">💡 Imagem sumiu?</h3>
+      <p class="dica-susp">Se a tela ficar preta mas o som continuar, apaga e acende a tela em uns 4 segundos.</p>
+      <button class="mini turbo-grande" id="tv-tela">💡 Reiniciar imagem</button>
     </div>
     <button class="ok-btn" id="fechar-config">Pronto</button>
     <div class="creditos">Touch Cell {{VERSAO}}<br>Criado pelos irmãos <b>Joel Andrade</b> e <b>Isaque Andrade</b></div>
@@ -1726,6 +1733,20 @@ document.querySelectorAll(".tprot").forEach(function(b){
     vibrar(15); enviar({t:"turbo_protecao", on:on});
     window.mtAviso(on ? "Papel de parede ligado" : "Papel de parede desligado: o vídeo pausado fica na tela");
   });
+});
+el("tv-tela").addEventListener("click", function(){ vibrar(15); enviar({t:"k", k:"tela"}); });
+// desligar a TV pela tela principal (toque duas vezes pra confirmar)
+let powerConfirma = 0;
+const tvPower = el("tv-power");
+tvPower.addEventListener("click", function(){
+  if (!powerConfirma){
+    powerConfirma = Date.now(); vibrar(20);
+    el("tv-power-txt").textContent = "Toque de novo para desligar"; tvPower.classList.add("confirmar");
+    setTimeout(function(){ if (powerConfirma && Date.now() - powerConfirma > 3400){ powerConfirma = 0; el("tv-power-txt").textContent = "Desligar a TV"; tvPower.classList.remove("confirmar"); } }, 3500);
+    return;
+  }
+  powerConfirma = 0; el("tv-power-txt").textContent = "Desligar a TV"; tvPower.classList.remove("confirmar");
+  vibrar(15); enviar({t:"suspender", min:0}); window.mtAviso("Desligando a TV…");
 });
 el("turbo-limpar").addEventListener("click", function(){
   vibrar(15); window.mtAviso("Limpando a memória da TV…"); enviar({t:"turbo_limpar"});

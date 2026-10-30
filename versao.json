@@ -1,6 +1,7 @@
 {
-  "versao": "1.15",
+  "versao": "1.16",
   "novidades": [
-    "Na TV: opção de desligar o papel de parede que aparece ao pausar (Turbo TV)"
+    "Na TV: botão Desligar a TV em cima dos atalhos",
+    "Na TV: 💡 Reiniciar imagem nos Ajustes, para quando a tela fica preta"
   ]
 }
