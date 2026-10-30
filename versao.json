@@ -1,8 +1,6 @@
 {
-  "versao": "1.13",
+  "versao": "1.14",
   "novidades": [
-    "Libera o Touch Cell no Firewall sozinho (basta clicar em Sim)",
-    "Botão 'Liberar no Firewall' na página do PC",
-    "O app do celular acha o PC mais rápido, mesmo depois de trocar de Wi-Fi"
+    "Na TV: Turbo TV nos Ajustes (limpar memória, animações e desativar apps que não usa)"
   ]
 }

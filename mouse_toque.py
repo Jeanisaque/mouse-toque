@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado pelos irmãos Joel Andrade e Isaque Andrade"
-VERSAO = "1.13"
+VERSAO = "1.14"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -992,8 +992,16 @@ header h1{font-size:17px;margin:0;font-weight:650;flex:1;letter-spacing:.2px}
 .mini.confirmar{background:var(--err);border-color:var(--err);color:#fff}
 #susp-status{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:10px 12px;border-radius:12px;background:#2a2412;border:1px solid #5c4a17;font-size:14px}
 #susp-status[hidden]{display:none}
-#tv-desligar{display:none;padding-top:4px}
-body.modo-tv #tv-desligar{display:block}
+#tv-desligar,#tv-turbo{display:none;padding-top:4px}
+body.modo-tv #tv-desligar,body.modo-tv #tv-turbo{display:block}
+.turbo-grande{width:100%;height:48px;margin:2px 0 6px;font-size:15px}
+.turbo-anim{grid-template-columns:repeat(3,minmax(0,1fr))}
+.tanim.sel{background:var(--acc);border-color:var(--acc);color:#fff}
+#turbo-apps .linha{gap:10px}
+#turbo-apps .linha span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#turbo-apps .linha.off span{color:var(--sub);text-decoration:line-through}
+#turbo-apps .mini{min-width:92px;height:40px}
+#tv-turbo.sem-adb .turbo-grande,#tv-turbo.sem-adb .tanim,#tv-turbo.sem-adb #turbo-apps .mini{opacity:.45;pointer-events:none}
 .tvd-outro{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:14px;color:var(--sub)}
 .tvd-outro label{flex:1}
 .tvd-outro input{width:76px;height:44px;border-radius:10px;border:1px solid var(--borda);background:var(--pad);color:var(--txt);font-size:16px;text-align:center;-webkit-user-select:text;user-select:text}
@@ -1221,6 +1229,21 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
         <button class="mini perigo" id="tvd-cancelar">Cancelar</button>
       </div>
     </div>
+    <div id="tv-turbo">
+      <h3 class="subtitulo">⚡ Turbo TV</h3>
+      <p class="dica-susp" id="turbo-mem">Memória: …</p>
+      <p class="dica-susp turbo-sem-adb" id="turbo-sem-adb" hidden>Precisa do <b>Controle completo</b> ativo na TV.</p>
+      <button class="mini turbo-grande" id="turbo-limpar">🧹 Limpar memória agora</button>
+      <div class="linha"><span>Animações</span></div>
+      <div class="susp-grade turbo-anim">
+        <button class="mini tanim" data-v="1">Normal</button>
+        <button class="mini tanim" data-v="0.5">Rápidas</button>
+        <button class="mini tanim" data-v="0">Desligadas</button>
+      </div>
+      <h3 class="subtitulo">Apps da TV</h3>
+      <p class="dica-susp">Desative os apps que você não usa: eles param de rodar escondidos e a TV fica mais leve. Dá pra reativar quando quiser.</p>
+      <div id="turbo-apps"></div>
+    </div>
     <button class="ok-btn" id="fechar-config">Pronto</button>
     <div class="creditos">Touch Cell {{VERSAO}}<br>Criado pelos irmãos <b>Joel Andrade</b> e <b>Isaque Andrade</b></div>
   </div>
@@ -1300,6 +1323,7 @@ function conectar(){
     if (m.t === "ok"){ pronto = true; status("ok", m.pc ? "Conectado a " + m.pc : "Conectado"); if (window.mtSusp) window.mtSusp(m.susp || 0); if (window.mtModo) window.mtModo(!!m.tv); }
     else if (m.t === "aviso"){ if (window.mtAviso) window.mtAviso(m.s); }
     else if (m.t === "brilho"){ if (window.mtBrilho) window.mtBrilho(m.v); }
+    else if (m.t === "turbo"){ if (window.mtTurbo) window.mtTurbo(m); }
     else if (m.t === "susp"){ if (window.mtSusp) window.mtSusp(m.resta || 0, m.agora); }
     else if (m.t === "erro"){ pronto = false; bloqueado = true; gravar("codigo", ""); codigo = ""; pedirCodigo("Código incorreto. Confira na tela do PC."); }
   };
@@ -1509,7 +1533,10 @@ function salvarCfg(){
   mostrarValores(); gravar("cfg", cfg); aplicarFundo();
 }
 ["c-sens","c-acel","c-rol","c-inv","c-toque","c-vib","c-transp"].forEach(function(id){ el(id).addEventListener("input", salvarCfg); el(id).addEventListener("change", salvarCfg); });
-el("abrir-config").addEventListener("click", function(){ folhaCfg.classList.add("aberta"); });
+el("abrir-config").addEventListener("click", function(){
+  folhaCfg.classList.add("aberta");
+  if (document.body.classList.contains("modo-tv")) enviar({t:"turbo_ler"});
+});
 el("fechar-config").addEventListener("click", function(){ folhaCfg.classList.remove("aberta"); });
 folhaCfg.addEventListener("click", function(e){ if (e.target === folhaCfg) folhaCfg.classList.remove("aberta"); });
 
@@ -1654,6 +1681,37 @@ el("tvd-ok").addEventListener("click", function(){
   window.mtAviso("A TV vai desligar em " + min + " min");
 });
 el("tvd-cancelar").addEventListener("click", function(){ vibrar(10); enviar({t:"cancelar_susp"}); window.mtAviso("Desligamento cancelado"); });
+
+// ---------- Turbo TV (nos ajustes, só no modo TV) ----------
+window.mtTurbo = function(m){
+  el("tv-turbo").classList.toggle("sem-adb", !m.adb);
+  el("turbo-sem-adb").hidden = !!m.adb;
+  el("turbo-mem").textContent = "Memória: " + (m.mem || "…");
+  document.querySelectorAll(".tanim").forEach(function(b){
+    b.classList.toggle("sel", m.anim !== undefined && Math.abs(parseFloat(b.dataset.v) - m.anim) < 0.01);
+  });
+  const caixa = el("turbo-apps"); caixa.innerHTML = "";
+  (m.apps || []).forEach(function(a){
+    const linha = document.createElement("div"); linha.className = "linha" + (a.on ? "" : " off");
+    const nome = document.createElement("span"); nome.textContent = a.n;
+    const btn = document.createElement("button");
+    btn.className = "mini" + (a.on ? " perigo" : ""); btn.textContent = a.on ? "Desativar" : "Reativar";
+    btn.addEventListener("click", function(){
+      vibrar(15); btn.disabled = true; btn.textContent = "…";
+      enviar({t:"turbo_app", p:a.p, on:!a.on});
+    });
+    linha.appendChild(nome); linha.appendChild(btn); caixa.appendChild(linha);
+  });
+};
+document.querySelectorAll(".tanim").forEach(function(b){
+  b.addEventListener("click", function(){
+    vibrar(15); enviar({t:"turbo_anim", v:parseFloat(b.dataset.v)});
+    window.mtAviso(b.dataset.v === "1" ? "Animações normais" : b.dataset.v === "0" ? "Animações desligadas: a TV fica mais ágil" : "Animações rápidas");
+  });
+});
+el("turbo-limpar").addEventListener("click", function(){
+  vibrar(15); window.mtAviso("Limpando a memória da TV…"); enviar({t:"turbo_limpar"});
+});
 
 // ---------- controles da TV (Voltar, Início, volume) ----------
 document.querySelectorAll(".tv-btn").forEach(function(btn){

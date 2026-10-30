@@ -206,8 +206,21 @@ class TouchService : AccessibilityService() {
             "brilho_ler", "brilho" -> con.enviar("{\"t\":\"brilho\",\"v\":null}")
             "suspender" -> agendarDesligar(msg.optInt("min", 0))
             "cancelar_susp" -> cancelarDesligar()
+            "turbo_ler" -> turbo.estado { con.enviar(it.toString()) }
+            "turbo_anim" -> turbo.animacoes(msg.optDouble("v", 1.0).toFloat()) {
+                turbo.estado { con.enviar(it.toString()) }
+            }
+            "turbo_limpar" -> turbo.limpar { txt ->
+                con.enviar(JSONObject().put("t", "aviso").put("s", txt).toString())
+                turbo.estado { con.enviar(it.toString()) }
+            }
+            "turbo_app" -> turbo.app(msg.optString("p"), msg.optBoolean("on")) {
+                turbo.estado { con.enviar(it.toString()) }
+            }
         }
     }
+
+    private val turbo by lazy { Turbo(this) { adb } }
 
     // ---- achar o elemento da tela que está embaixo da setinha ----
 

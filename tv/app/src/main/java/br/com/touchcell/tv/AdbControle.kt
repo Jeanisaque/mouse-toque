@@ -145,6 +145,16 @@ class AdbControle(private val ctx: Context) {
         comandos.execute { shell(cmd) {} }
     }
 
+    /** Comando de shell que devolve a saída (null se a depuração não estiver ligada). */
+    fun executar(cmd: String, resposta: (String?) -> Unit) {
+        if (!conectado) { resposta(null); return }
+        comandos.execute {
+            val d = dadb
+            val saida = try { d?.shell(cmd)?.allOutput } catch (e: Throwable) { null }
+            resposta(saida)
+        }
+    }
+
     /** Rolagem com a roda do mouse (só com o ajudante rápido). */
     fun rolarMouse(x: Int, y: Int, v: Int, h: Int) {
         comandos.execute { escrever("s $x $y $v $h") }
