@@ -170,6 +170,15 @@ class ControleActivity : Activity() {
         return super.onKeyDown(keyCode, event)
     }
 
+    /** Voltar do celular: se tiver Ajustes (ou outra janela) aberto na tela, só fecha ele. */
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        web.evaluateJavascript("window.mtVoltar ? window.mtVoltar() : false") { r ->
+            @Suppress("DEPRECATION")
+            if (r != "true") super.onBackPressed()
+        }
+    }
+
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) return true
         return super.onKeyUp(keyCode, event)

@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado pelos irmãos Joel Andrade e Isaque Andrade"
-VERSAO = "1.16"
+VERSAO = "1.17"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -1805,7 +1805,15 @@ aplicarModoMouse();
 let timerAviso = null;
 window.mtAviso = function(txt){
   const a = el("aviso"); a.textContent = txt; a.classList.add("mostrar");
-  clearTimeout(timerAviso); timerAviso = setTimeout(function(){ a.classList.remove("mostrar"); }, 2600);
+  // textos longos ficam mais tempo na tela
+  clearTimeout(timerAviso); timerAviso = setTimeout(function(){ a.classList.remove("mostrar"); }, Math.min(9000, 2600 + String(txt).length * 45));
+};
+// botão voltar do app do celular: fecha a janela aberta (Ajustes, Brilho…) em vez de sair
+window.mtVoltar = function(){
+  const aberta = document.querySelector(".folha.aberta");
+  if (!aberta) return false;
+  aberta.classList.remove("aberta");
+  return true;
 };
 const dicaOriginal = el("dica").innerHTML;
 // na TV, os botões de apps usam os ícones dos apps instalados na própria TV

@@ -1,7 +1,7 @@
 {
-  "versao": "1.16",
+  "versao": "1.17",
   "novidades": [
-    "Na TV: botão Desligar a TV em cima dos atalhos",
-    "Na TV: 💡 Reiniciar imagem nos Ajustes, para quando a tela fica preta"
+    "No app do celular: o voltar fecha os Ajustes em vez de sair do controle",
+    "Na TV: Desligar e Reiniciar imagem mostram o resultado do teste"
   ]
 }

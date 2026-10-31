@@ -41,7 +41,10 @@ class TouchService : AccessibilityService() {
         /** Tenta cada tecla de energia e para na primeira que realmente apagar a tela (ok = tecla que funcionou). */
         private const val APAGAR_TELA =
             "acordada(){ dumpsys power | grep -q 'mWakefulness=Awake'; }; ok=''; " +
-            "for k in 177 26 223; do input keyevent \$k; sleep 3; if ! acordada; then ok=\$k; break; fi; done"
+            "echo \"antes:\$(dumpsys power | grep -o 'mWakefulness=[A-Za-z]*')\"; " +
+            "for k in 177 26 223; do input keyevent \$k; sleep 3; " +
+            "echo \"k\$k:\$(dumpsys power | grep -o 'mWakefulness=[A-Za-z]*')\"; " +
+            "if ! acordada; then ok=\$k; break; fi; done"
         private const val ACENDER_TELA =
             "input keyevent 224; sleep 2; acordada || input keyevent \$ok; sleep 2; acordada || input keyevent 26"
     }
@@ -598,7 +601,11 @@ class TouchService : AccessibilityService() {
             a.executar(APAGAR_TELA + "; echo \"tecla=\$ok\"") { saida ->
                 val tecla = Regex("tecla=(\\S*)").find(saida ?: "")?.groupValues?.get(1).orEmpty()
                 if (tecla.isNotEmpty()) return@executar
-                servidor?.avisarTodos(JSONObject().put("t", "aviso").put("s", "A TV ignorou as teclas; desligando pelo sistema…"))
+                if (saida == null) {
+                    servidor?.avisarTodos(JSONObject().put("t", "aviso").put("s", "A depuração da TV não respondeu. Reabra o Touch Cell TV na TV."))
+                    return@executar
+                }
+                servidor?.avisarTodos(JSONObject().put("t", "aviso").put("s", "A TV ignorou as teclas; desligando pelo sistema… · " + resumo(saida)))
                 a.comando("svc power shutdown")
             }
             return
@@ -641,11 +648,20 @@ class TouchService : AccessibilityService() {
         con.enviar(JSONObject().put("t", "aviso").put("s", "Reiniciando a imagem… (até 15 segundos)").toString())
         a.executar(APAGAR_TELA + "; if [ -n \"\$ok\" ]; then sleep 2; " + ACENDER_TELA + "; fi; echo \"tecla=\$ok\"") { saida ->
             val tecla = Regex("tecla=(\\S*)").find(saida ?: "")?.groupValues?.get(1).orEmpty()
-            val txt = if (tecla.isEmpty()) "A TV ignorou as teclas de energia (testei TV Power, Power e Dormir)"
-                      else "Imagem reiniciada (tecla ${nomeTecla(tecla)})"
+            val txt = when {
+                saida == null -> "A depuração da TV não respondeu. Reabra o Touch Cell TV na TV."
+                tecla.isEmpty() -> "A TV ignorou as teclas de energia · " + resumo(saida)
+                else -> "Imagem reiniciada (tecla ${nomeTecla(tecla)})"
+            }
             servidor?.avisarTodos(JSONObject().put("t", "aviso").put("s", txt))
         }
     }
+
+    /** Resumo do teste para mostrar no celular (ex.: "antes:Awake k177:Awake k26:Awake"). */
+    private fun resumo(saida: String) = saida.lines()
+        .filter { it.startsWith("antes:") || it.startsWith("k") }
+        .joinToString(" ") { it.replace("mWakefulness=", "").trim() }
+        .ifBlank { saida.trim().take(160) }
 
     private fun nomeTecla(k: String) = when (k) { "177" -> "TV Power"; "26" -> "Power"; "223" -> "Dormir"; else -> k }
 
