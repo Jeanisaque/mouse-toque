@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Criador de Sites</title>
+<style>
+:root{--bg:#0f1115;--card:#181b22;--bd:#2a2f3a;--tx:#eef0f5;--mut:#9aa3b5;--ac:#7c5cff}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--tx);font:16px system-ui,sans-serif}
+#app{display:flex;flex-direction:column;height:100%}
+header{padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;gap:8px;align-items:center}
+header h1{font-size:18px;margin:0;flex:1}
+.tabs{display:flex;border-bottom:1px solid var(--bd)}
+.tabs button{flex:1;padding:12px;background:none;border:0;color:var(--mut);font-size:15px;border-bottom:3px solid transparent}
+.tabs button.on{color:var(--tx);border-color:var(--ac)}
+main{flex:1;overflow:auto;padding:16px}
+.painel{display:none}.painel.on{display:block}
+label{display:block;margin:14px 0 6px;color:var(--mut);font-size:13px}
+input,textarea,select{width:100%;padding:12px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);font:inherit}
+textarea{min-height:90px;resize:vertical}
+input[type=color]{padding:2px;height:44px}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.btn{display:block;width:100%;padding:14px;border:0;border-radius:12px;background:var(--ac);color:#fff;font-size:16px;font-weight:600;margin-top:10px}
+.btn.sec{background:var(--card);border:1px solid var(--bd)}
+.btn.peq{width:auto;padding:8px 14px;margin:0;font-size:14px}
+.modelos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modelo{padding:14px;border:2px solid var(--bd);border-radius:12px;background:var(--card);color:var(--tx);text-align:left;font-size:15px}
+.modelo small{display:block;color:var(--mut);margin-top:4px}
+.modelo.on{border-color:var(--ac)}
+#previa{width:100%;height:100%;border:0;background:#fff;border-radius:10px}
+#painel-previa{height:100%}
+.lista .item{display:flex;gap:10px;align-items:center;padding:12px;border:1px solid var(--bd);border-radius:12px;background:var(--card);margin-bottom:10px}
+.lista .item b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dica{color:var(--mut);font-size:13px;margin-top:6px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1 id="titulo">Criador de Sites</h1><button class="btn sec peq" id="btnMeus">Meus sites</button></header>
+  <div class="tabs">
+    <button data-t="modelo" class="on">Modelo</button>
+    <button data-t="conteudo">Conteúdo</button>
+    <button data-t="visual">Visual</button>
+    <button data-t="previa">Prévia</button>
+  </div>
+  <main>
+    <section class="painel on" id="painel-modelo">
+      <div class="modelos" id="modelos"></div>
+      <p class="dica">Escolha um modelo para começar. Dá para trocar depois sem perder o texto.</p>
+    </section>
+
+    <section class="painel" id="painel-conteudo">
+      <label>Nome do site / negócio</label><input id="nome" placeholder="Ex.: Padaria do Zé">
+      <label>Frase de destaque</label><input id="slogan" placeholder="Ex.: Pão quentinho todo dia">
+      <label>Sobre</label><textarea id="sobre" placeholder="Conte em poucas linhas quem você é e o que faz"></textarea>
+      <label id="rotItens">Serviços (um por linha: Título | descrição | preço opcional)</label>
+      <textarea id="itens" style="min-height:140px" placeholder="Corte | Corte masculino | R$ 40"></textarea>
+      <label>WhatsApp (com DDD, só números)</label><input id="whats" inputmode="numeric" placeholder="11999998888">
+      <label>E-mail</label><input id="email" type="email" placeholder="contato@exemplo.com">
+      <label>Instagram (sem @)</label><input id="insta" placeholder="meunegocio">
+      <label>Endereço</label><input id="endereco" placeholder="Rua, número, cidade">
+      <label>Horário de funcionamento</label><input id="horario" placeholder="Seg a Sáb, 8h às 18h">
+    </section>
+
+    <section class="painel" id="painel-visual">
+      <div class="row">
+        <div><label>Cor principal</label><input id="cor" type="color" value="#7c5cff"></div>
+        <div><label>Cor do fundo</label><input id="fundo" type="color" value="#ffffff"></div>
+      </div>
+      <label>Tema</label>
+      <select id="tema"><option value="claro">Claro</option><option value="escuro">Escuro</option></select>
+      <label>Fonte</label>
+      <select id="fonte">
+        <option value="system-ui,-apple-system,Segoe UI,Roboto,sans-serif">Moderna (sans)</option>
+        <option value="Georgia,'Times New Roman',serif">Clássica (serifa)</option>
+        <option value="'Trebuchet MS',Verdana,sans-serif">Amigável</option>
+        <option value="'Courier New',monospace">Técnica (mono)</option>
+      </select>
+      <label>Cantos</label>
+      <select id="cantos"><option value="14">Arredondados</option><option value="0">Retos</option><option value="28">Bem redondos</option></select>
+      <label>URL da imagem de destaque (opcional)</label><input id="imagem" type="url" placeholder="https://...">
+      <p class="dica">Sem imagem, o destaque usa um degradê com a cor principal.</p>
+    </section>
+
+    <section class="painel" id="painel-previa">
+      <iframe id="previa" sandbox=""></iframe>
+    </section>
+
+    <section class="painel" id="painel-meus">
+      <div class="lista" id="lista"></div>
+      <button class="btn" id="btnNovo">+ Novo site</button>
+    </section>
+  </main>
+  <div style="padding:10px 16px;border-top:1px solid var(--bd)" id="rodape">
+    <div class="row">
+      <button class="btn sec" id="btnSalvar" style="margin:0">Salvar HTML</button>
+      <button class="btn sec" id="btnCompartilhar" style="margin:0">Compartilhar</button>
+      <button class="btn" id="btnAbrir" style="margin:0">Abrir</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const soNum = s => String(s ?? '').replace(/\D/g, '');
+const seguraUrl = u => /^https?:\/\//i.test(u) ? u : '';
+
+const MODELOS = {
+  negocio:    {nome:'Negócio local', desc:'Serviços, contato e endereço', rot:'Serviços (um por linha: Título | descrição | preço opcional)', btn:'Fale conosco'},
+  restaurante:{nome:'Restaurante', desc:'Cardápio com preços', rot:'Cardápio (um por linha: Prato | descrição | preço)', btn:'Fazer pedido'},
+  loja:       {nome:'Loja', desc:'Produtos com preço e pedido', rot:'Produtos (um por linha: Produto | descrição | preço)', btn:'Comprar pelo WhatsApp'},
+  portfolio:  {nome:'Portfólio', desc:'Trabalhos e sobre você', rot:'Trabalhos (um por linha: Título | descrição)', btn:'Vamos conversar'},
+  landing:    {nome:'Página de venda', desc:'Um produto, benefícios e botão', rot:'Benefícios (um por linha: Título | descrição)', btn:'Quero agora'},
+  evento:     {nome:'Evento / convite', desc:'Data, local e programação', rot:'Programação (um por linha: Horário | atividade)', btn:'Confirmar presença'}
+};
+const PADRAO = {
+  id:'', modelo:'negocio', nome:'', slogan:'', sobre:'', itens:'', whats:'', email:'', insta:'', endereco:'', horario:'',
+  cor:'#7c5cff', fundo:'#ffffff', tema:'claro', fonte:'system-ui,-apple-system,Segoe UI,Roboto,sans-serif', cantos:'14', imagem:''
+};
+const CAMPOS = ['nome','slogan','sobre','itens','whats','email','insta','endereco','horario','cor','fundo','tema','fonte','cantos','imagem'];
+
+let site = {...PADRAO};
+
+/* ---------- gerador do site ---------- */
+function gerarHtml(s) {
+  const m = MODELOS[s.modelo] || MODELOS.negocio;
+  const nome = s.nome || 'Meu site';
+  const escuro = s.tema === 'escuro';
+  const fundo = escuro ? '#0f1115' : (s.fundo || '#ffffff');
+  const texto = escuro ? '#eef0f5' : '#1b1e27';
+  const suave = escuro ? '#9aa3b5' : '#5b6376';
+  const cartao = escuro ? '#181b22' : '#f4f5f9';
+  const raio = parseInt(s.cantos, 10) || 0;
+  const cor = /^#[0-9a-f]{6}$/i.test(s.cor) ? s.cor : '#7c5cff';
+  const fonte = String(s.fonte).replace(/[<>"{};]/g, '');
+  const whats = soNum(s.whats);
+  const linkWhats = whats ? `https://wa.me/${whats.length <= 11 ? '55' + whats : whats}?text=${encodeURIComponent('Olá! Vim pelo site ' + nome)}` : '';
+  const img = seguraUrl(s.imagem);
+
+  const itens = String(s.itens || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const [a, b, c] = l.split('|').map(x => (x || '').trim());
+    return `<article class="card"><h3>${esc(a)}</h3>${b ? `<p>${esc(b)}</p>` : ''}${c ? `<strong class="preco">${esc(c)}</strong>` : ''}</article>`;
+  }).join('');
+
+  const botao = linkWhats
+    ? `<a class="botao" href="${esc(linkWhats)}">${esc(m.btn)}</a>`
+    : (s.email ? `<a class="botao" href="mailto:${esc(s.email)}">${esc(m.btn)}</a>` : '');
+
+  const contato = [
+    linkWhats && `<li>WhatsApp: <a href="${esc(linkWhats)}">${esc(s.whats)}</a></li>`,
+    s.email && `<li>E-mail: <a href="mailto:${esc(s.email)}">${esc(s.email)}</a></li>`,
+    s.insta && `<li>Instagram: <a href="https://instagram.com/${encodeURIComponent(s.insta.replace(/^@/, ''))}">@${esc(s.insta.replace(/^@/, ''))}</a></li>`,
+    s.endereco && `<li>Endereço: ${esc(s.endereco)} · <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.endereco)}">ver no mapa</a></li>`,
+    s.horario && `<li>Horário: ${esc(s.horario)}</li>`
+  ].filter(Boolean).join('');
+
+  const tituloItens = (m.rot.split(' (')[0]);
+
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(nome)}</title>
+<meta name="description" content="${esc(s.slogan || s.sobre.slice(0, 150))}">
+<meta name="theme-color" content="${cor}">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:${fundo};color:${texto};font-family:${fonte};line-height:1.6}
+a{color:${cor}}
+.wrap{max-width:900px;margin:0 auto;padding:0 20px}
+.hero{padding:72px 0 64px;color:#fff;text-align:center;background:${img ? `linear-gradient(rgba(0,0,0,.5),rgba(0,0,0,.5)),url('${esc(img).replace(/'/g, '%27')}') center/cover` : `linear-gradient(135deg,${cor},#111 160%)`}}
+.hero h1{font-size:clamp(2rem,7vw,3.4rem);margin:0 0 12px;line-height:1.15}
+.hero p{font-size:1.2rem;margin:0 auto 28px;max-width:560px;opacity:.95}
+.botao{display:inline-block;background:#fff;color:${cor};padding:14px 28px;border-radius:${Math.max(raio, 8)}px;font-weight:700;text-decoration:none}
+section{padding:48px 0}
+h2{font-size:1.6rem;margin:0 0 20px}
+.grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.card{background:${cartao};padding:20px;border-radius:${raio}px}
+.card h3{margin:0 0 6px}.card p{margin:0 0 10px;color:${suave}}
+.preco{color:${cor};font-size:1.1rem}
+ul.contato{list-style:none;padding:0;margin:0}ul.contato li{padding:8px 0;border-bottom:1px solid ${escuro ? '#2a2f3a' : '#e3e5ec'}}
+footer{padding:28px 0;text-align:center;color:${suave};font-size:.9rem}
+${linkWhats ? `.flutuante{position:fixed;right:18px;bottom:18px;background:#25d366;color:#fff;padding:14px 18px;border-radius:999px;font-weight:700;text-decoration:none;box-shadow:0 4px 14px rgba(0,0,0,.3)}` : ''}
+</style>
+</head>
+<body>
+<header class="hero"><div class="wrap">
+<h1>${esc(nome)}</h1>
+${s.slogan ? `<p>${esc(s.slogan)}</p>` : ''}
+${botao}
+</div></header>
+<main class="wrap">
+${s.sobre ? `<section><h2>${s.modelo === 'evento' ? 'Sobre o evento' : 'Sobre'}</h2><p>${esc(s.sobre).replace(/\n/g, '<br>')}</p></section>` : ''}
+${itens ? `<section><h2>${esc(tituloItens)}</h2><div class="grade">${itens}</div></section>` : ''}
+${contato ? `<section><h2>${s.modelo === 'evento' ? 'Local e contato' : 'Contato'}</h2><ul class="contato">${contato}</ul></section>` : ''}
+</main>
+<footer><div class="wrap">© ${new Date().getFullYear()} ${esc(nome)} · Feito com Criador de Sites</div></footer>
+${linkWhats ? `<a class="flutuante" href="${esc(linkWhats)}">WhatsApp</a>` : ''}
+</body>
+</html>`;
+}
+
+/* ---------- armazenamento ---------- */
+const CHAVE = 'criador-sites-v1';
+function lerTodos() { try { return JSON.parse(localStorage.getItem(CHAVE)) || []; } catch (e) { return []; } }
+function gravarTodos(l) { try { localStorage.setItem(CHAVE, JSON.stringify(l)); } catch (e) {} }
+function guardar() {
+  if (!site.id) site.id = 's' + Date.now();
+  const l = lerTodos(); const i = l.findIndex(x => x.id === site.id);
+  if (i >= 0) l[i] = site; else l.push(site);
+  gravarTodos(l);
+}
+
+/* ---------- interface ---------- */
+function lerForm() { CAMPOS.forEach(c => site[c] = $('#' + c).value); }
+function escreverForm() { CAMPOS.forEach(c => $('#' + c).value = site[c]); atualizaRotulo(); marcaModelo(); }
+function atualizaRotulo() { $('#rotItens').textContent = (MODELOS[site.modelo] || MODELOS.negocio).rot; }
+function marcaModelo() { document.querySelectorAll('.modelo').forEach(b => b.classList.toggle('on', b.dataset.m === site.modelo)); }
+
+$('#modelos').innerHTML = Object.entries(MODELOS).map(([k, m]) =>
+  `<button class="modelo" data-m="${k}">${esc(m.nome)}<small>${esc(m.desc)}</small></button>`).join('');
+$('#modelos').addEventListener('click', e => {
+  const b = e.target.closest('.modelo'); if (!b) return;
+  site.modelo = b.dataset.m; atualizaRotulo(); marcaModelo(); guardar(); mostra('conteudo');
+});
+
+let aba = 'modelo';
+function mostra(t) {
+  if (aba !== 'meus') lerForm();
+  aba = t;
+  document.querySelectorAll('.painel').forEach(p => p.classList.toggle('on', p.id === 'painel-' + t));
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+  $('.tabs').style.display = t === 'meus' ? 'none' : 'flex';
+  $('#rodape').style.display = t === 'meus' ? 'none' : 'block';
+  $('#btnMeus').style.display = t === 'meus' ? 'none' : 'block';
+  $('#titulo').textContent = t === 'meus' ? 'Meus sites' : (site.nome || 'Criador de Sites');
+  if (t === 'previa') $('#previa').srcdoc = gerarHtml(site);
+  if (t === 'meus') listar();
+  if (t !== 'meus') guardar();
+}
+document.querySelector('.tabs').addEventListener('click', e => { const b = e.target.closest('button'); if (b) mostra(b.dataset.t); });
+document.querySelectorAll('input,textarea,select').forEach(el => el.addEventListener('change', () => { lerForm(); guardar(); }));
+
+function listar() {
+  const l = lerTodos().slice().reverse();
+  $('#lista').innerHTML = l.length ? l.map(s =>
+    `<div class="item"><b>${esc(s.nome || 'Sem nome')}</b><button class="btn sec peq" data-a="abrir" data-id="${esc(s.id)}">Editar</button><button class="btn sec peq" data-a="apagar" data-id="${esc(s.id)}">Apagar</button></div>`
+  ).join('') : '<p class="dica">Nenhum site ainda.</p>';
+}
+$('#lista').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const l = lerTodos();
+  if (b.dataset.a === 'abrir') { site = {...PADRAO, ...l.find(x => x.id === b.dataset.id)}; escreverForm(); mostra('conteudo'); }
+  else if (confirm('Apagar este site?')) { gravarTodos(l.filter(x => x.id !== b.dataset.id)); if (site.id === b.dataset.id) site = {...PADRAO}; listar(); }
+});
+$('#btnMeus').onclick = () => mostra('meus');
+$('#btnNovo').onclick = () => { site = {...PADRAO}; escreverForm(); mostra('modelo'); };
+
+/* ---------- exportar ---------- */
+function pronto() {
+  lerForm(); guardar();
+  if (!site.nome.trim()) { alert('Preencha o nome do site na aba Conteúdo.'); mostra('conteudo'); return null; }
+  return {nome: site.nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-'), html: gerarHtml(site)};
+}
+function ponte(metodo, copia) {
+  const r = pronto(); if (!r) return;
+  if (window.Android) window.Android[metodo](r.nome, r.html);
+  else if (copia) copia(r);
+  else alert('Disponível apenas no app.');
+}
+$('#btnSalvar').onclick = () => ponte('salvar', r => {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([r.html], {type: 'text/html'})); a.download = r.nome + '.html'; a.click();
+});
+$('#btnCompartilhar').onclick = () => ponte('compartilhar', r => navigator.clipboard && navigator.clipboard.writeText(r.html).then(() => alert('Código copiado.')));
+$('#btnAbrir').onclick = () => ponte('abrirNoNavegador', r => window.open(URL.createObjectURL(new Blob([r.html], {type: 'text/html'}))));
+
+/* botão voltar do Android: devolve true se tratou */
+window.voltar = () => {
+  if (aba === 'meus' || aba === 'previa') { mostra(aba === 'meus' ? 'conteudo' : 'conteudo'); return true; }
+  if (aba !== 'modelo') { mostra('modelo'); return true; }
+  return false;
+};
+
+/* início: retoma o último site */
+(function () {
+  const l = lerTodos();
+  if (l.length) site = {...PADRAO, ...l[l.length - 1]};
+  escreverForm();
+  mostra(site.id ? 'conteudo' : 'modelo');
+})();
+</script>
+</body>
+</html>
