@@ -43,6 +43,7 @@ input[type=color]{padding:2px;height:44px}
     <button data-t="conteudo">Conteúdo</button>
     <button data-t="visual">Visual</button>
     <button data-t="previa">Prévia</button>
+    <button data-t="publicar">Publicar</button>
   </div>
   <main>
     <section class="painel on" id="painel-modelo">
@@ -85,6 +86,15 @@ input[type=color]{padding:2px;height:44px}
 
     <section class="painel" id="painel-previa">
       <iframe id="previa" sandbox=""></iframe>
+    </section>
+
+    <section class="painel" id="painel-publicar">
+      <p class="dica" style="margin-top:0">Seu site é um arquivo HTML. Para ele ficar online, é só enviar esse arquivo para uma hospedagem gratuita. Escolha uma:</p>
+      <div class="modelos" id="hosts"></div>
+      <div id="passos"></div>
+      <button class="btn" id="btnIndex">1. Salvar como index.html</button>
+      <button class="btn sec" id="btnSite">2. Abrir o serviço</button>
+      <p class="dica">O app não publica sozinho porque isso exigiria sua conta e senha. Você faz o envio no navegador, em poucos toques.</p>
     </section>
 
     <section class="painel" id="painel-meus">
@@ -278,9 +288,36 @@ $('#btnSalvar').onclick = () => ponte('salvar', r => {
 $('#btnCompartilhar').onclick = () => ponte('compartilhar', r => navigator.clipboard && navigator.clipboard.writeText(r.html).then(() => alert('Código copiado.')));
 $('#btnAbrir').onclick = () => ponte('abrirNoNavegador', r => window.open(URL.createObjectURL(new Blob([r.html], {type: 'text/html'}))));
 
+/* ---------- publicar online ---------- */
+const HOSTS = {
+  github: {nome:'GitHub Pages', desc:'Grátis, endereço usuario.github.io', url:'https://github.com/new',
+    passos:['Crie uma conta grátis em github.com e entre.','Toque em "Abrir o serviço" e crie um repositório PÚBLICO (ex.: meu-site).','Em "uploading an existing file", envie o index.html salvo no passo 1 e toque em Commit.','Vá em Settings > Pages, em Branch escolha main e salve.','Em ~1 minuto o site abre em https://SEU-USUARIO.github.io/meu-site']},
+  netlify: {nome:'Netlify Drop', desc:'Grátis, o mais rápido', url:'https://app.netlify.com/drop',
+    passos:['Toque em "Abrir o serviço" (o navegador do celular pode pedir "versão para computador").','Crie ou entre numa conta grátis.','Envie uma pasta com o index.html (no celular, use um app de arquivos para colocá-lo numa pasta e escolha-a).','O Netlify mostra o endereço do site na hora; em Site settings dá para trocar o nome.']},
+  cloudflare: {nome:'Cloudflare Pages', desc:'Grátis, rápido no mundo todo', url:'https://dash.cloudflare.com/?to=/:account/pages',
+    passos:['Crie uma conta grátis na Cloudflare e entre.','Toque em "Abrir o serviço" e vá em Workers & Pages > Create > Pages > Upload assets.','Dê um nome ao projeto e envie o index.html.','Toque em Deploy; o site fica em NOME.pages.dev']}
+};
+let host = 'github';
+function mostraHost() {
+  document.querySelectorAll('#hosts .modelo').forEach(b => b.classList.toggle('on', b.dataset.h === host));
+  $('#passos').innerHTML = '<ol>' + HOSTS[host].passos.map(p => '<li style="margin:8px 0">' + esc(p) + '</li>').join('') + '</ol>';
+}
+$('#hosts').innerHTML = Object.entries(HOSTS).map(([k, h]) => `<button class="modelo" data-h="${k}">${esc(h.nome)}<small>${esc(h.desc)}</small></button>`).join('');
+$('#hosts').addEventListener('click', e => { const b = e.target.closest('.modelo'); if (b) { host = b.dataset.h; mostraHost(); } });
+mostraHost();
+$('#btnIndex').onclick = () => { const r = pronto(); if (!r) return; ponte2('salvar', 'index', r.html); };
+$('#btnSite').onclick = () => {
+  if (window.Android && window.Android.abrirLink) window.Android.abrirLink(HOSTS[host].url);
+  else window.open(HOSTS[host].url, '_blank');
+};
+function ponte2(m, nome, html) {
+  if (window.Android) window.Android[m](nome, html);
+  else { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html], {type: 'text/html'})); a.download = nome + '.html'; a.click(); }
+}
+
 /* botão voltar do Android: devolve true se tratou */
 window.voltar = () => {
-  if (aba === 'meus' || aba === 'previa') { mostra(aba === 'meus' ? 'conteudo' : 'conteudo'); return true; }
+  if (aba === 'meus' || aba === 'previa' || aba === 'publicar') { mostra(aba === 'meus' ? 'conteudo' : 'conteudo'); return true; }
   if (aba !== 'modelo') { mostra('modelo'); return true; }
   return false;
 };

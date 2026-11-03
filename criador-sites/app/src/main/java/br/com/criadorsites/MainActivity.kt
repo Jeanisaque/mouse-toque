@@ -95,6 +95,17 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        /** Abre um endereço https no navegador do celular. */
+        @JavascriptInterface
+        fun abrirLink(url: String) {
+            if (!url.startsWith("https://")) return
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+            } catch (e: Exception) {
+                aviso("Não consegui abrir o navegador")
+            }
+        }
+
         /** Abre o site gerado no navegador do celular. */
         @JavascriptInterface
         fun abrirNoNavegador(nome: String, html: String) {
