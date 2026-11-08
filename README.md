@@ -28,3 +28,7 @@ O programa se atualiza sozinho toda vez que abre.
 1. Altere `mouse_toque.py` e aumente `VERSAO` (ex.: `1.2` → `1.3`).
 2. Coloque o mesmo número em `versao.json`, com as novidades.
 3. Envie os dois arquivos para a branch `main`.
+
+## Leitor de Livros (APK)
+
+App para ler EPUB, PDF, TXT e HTML, com leitura em voz alta que avança sozinha pelos capítulos. Código web em `leitor-livros/`, empacotado como APK (Capacitor) em `leitor-livros-app/`. O APK é gerado pelo workflow `app-leitor.yml` e publicado na release `leitor`.

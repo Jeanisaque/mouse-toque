@@ -208,16 +208,20 @@ function abrir(l) {
 }
 // ---------- Ouvir (voz do navegador) ----------
 let falando = false;
-function parar() { falando = false; speechSynthesis.cancel(); $('btOuvir').textContent = '🔊'; }
+const P = (window.Capacitor && Capacitor.Plugins) || {}, nativoTTS = P.TextToSpeech;
+function dizer(texto) {
+  if (nativoTTS) return nativoTTS.speak({text: texto, lang: 'pt-BR', rate: 1, category: 'playback'}).catch(() => {});
+  return new Promise(ok => { const u = new SpeechSynthesisUtterance(texto); u.lang = 'pt-BR'; u.onend = u.onerror = ok; speechSynthesis.speak(u); });
+}
+function parar() { falando = false; if (nativoTTS) nativoTTS.stop().catch(() => {}); else speechSynthesis.cancel();
+  if (P.KeepAwake) P.KeepAwake.allowSleep().catch(() => {}); $('btOuvir').textContent = '🔊'; }
 function falar(i = 0) {
   const ps = [...$('texto').querySelectorAll('p,h1,h2,h3,li')].filter(e => e.textContent.trim());
   if (!falando || i >= ps.length) { if (falando && atual.cap < atual.caps.length - 1) { renderCap(atual.cap + 1); scrollTo(0, 0); return setTimeout(() => falar(0), 100); } return parar(); }
   ps[i].scrollIntoView({block: 'center', behavior: 'smooth'}); ps[i].style.background = 'var(--line)';
-  const u = new SpeechSynthesisUtterance(ps[i].textContent); u.lang = 'pt-BR'; u.rate = 1;
-  u.onend = u.onerror = () => { ps[i].style.background = ''; falar(i + 1); };
-  speechSynthesis.speak(u);
+  dizer(ps[i].textContent).then(() => { ps[i].style.background = ''; if (falando) falar(i + 1); });
 }
-$('btOuvir').onclick = () => { if (falando) return parar(); falando = true; $('btOuvir').textContent = '⏹'; falar(0); };
+$('btOuvir').onclick = () => { if (falando) return parar(); falando = true; $('btOuvir').textContent = '⏹'; if (P.KeepAwake) P.KeepAwake.keepAwake().catch(() => {}); falar(0); };
 const ir = d => { const n = atual.cap + d; if (n >= 0 && n < atual.caps.length) { renderCap(n); scrollTo(0, 0); } };
 $('ant').onclick = () => { parar(); ir(-1); }; $('prox').onclick = () => { parar(); ir(1); };
 $('voltar').onclick = async () => { parar(); clearTimeout(tmr); await salvar(atual); mostrarBiblioteca(); };
