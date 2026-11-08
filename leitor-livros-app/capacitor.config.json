@@ -1,0 +1,6 @@
+{
+  "appId": "com.touchcell.leitor",
+  "appName": "Leitor de Livros",
+  "webDir": "www",
+  "plugins": { "CapacitorHttp": { "enabled": true } }
+}
