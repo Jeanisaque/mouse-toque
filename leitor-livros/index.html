@@ -42,7 +42,9 @@ main{max-width:900px;margin:0 auto;padding:16px}
   <h1 id="titulo">📚 Minha Biblioteca</h1>
   <button class="sec" id="btSum" style="display:none">☰</button>
   <button class="sec" id="btAj" style="display:none">Aa</button>
-  <label class="btn" id="btAdd">+ Adicionar<input type="file" id="arq" accept=".epub,.txt" multiple hidden></label>
+  <button class="sec" id="btUrl">🔗 Link</button>
+  <button class="sec" id="btOuvir" style="display:none">🔊</button>
+  <label class="btn" id="btAdd">+ Adicionar<input type="file" id="arq" accept=".epub,.txt,.pdf,.html,.htm" multiple hidden></label>
 </header>
 
 <main id="biblioteca"><div class="grade" id="grade"></div></main>
@@ -61,6 +63,7 @@ main{max-width:900px;margin:0 auto;padding:16px}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 // ---------- Banco (IndexedDB) ----------
 const db = new Promise((ok, err) => {
@@ -119,13 +122,45 @@ async function lerEpub(buf) {
   if (!caps.length) throw new Error('EPUB sem conteúdo legível');
   return {titulo: meta('title') || 'Sem título', autor: meta('creator'), caps};
 }
+async function lerPdf(buf) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const pdf = await pdfjsLib.getDocument({data: buf}).promise, caps = [], por = 5;
+  const info = await pdf.getMetadata().catch(() => null);
+  for (let i = 1; i <= pdf.numPages; i += por) {
+    let html = '';
+    for (let p = i; p < i + por && p <= pdf.numPages; p++) {
+      const t = await (await pdf.getPage(p)).getTextContent();
+      let linha = '', y = null, ps = [];
+      for (const it of t.items) {
+        const yy = it.transform[5];
+        if (y !== null && Math.abs(yy - y) > 14) { ps.push(linha); linha = ''; }
+        linha += it.str + (it.hasEOL ? ' ' : ''); y = yy;
+      }
+      ps.push(linha);
+      html += ps.map(x => x.trim()).filter(Boolean).map(x => '<p>' + esc(x) + '</p>').join('');
+    }
+    caps.push({titulo: `Páginas ${i}–${Math.min(i + por - 1, pdf.numPages)}`, html: html || '<p>(sem texto — PDF escaneado?)</p>'});
+  }
+  return {titulo: (info && info.info && info.info.Title) || '', autor: (info && info.info && info.info.Author) || '', caps};
+}
 async function importar(file) {
   const nome = file.name.replace(/\.[^.]+$/, '');
   let l;
   if (/\.epub$/i.test(file.name)) l = await lerEpub(await file.arrayBuffer());
+  else if (/\.pdf$/i.test(file.name)) { l = await lerPdf(await file.arrayBuffer()); l.titulo = l.titulo || nome; }
+  else if (/\.html?$/i.test(file.name)) { const d = new DOMParser().parseFromString(await file.text(), 'text/html'); l = {titulo: d.title || nome, autor: '', caps: [{titulo: nome, html: limpar(d.body.innerHTML)}]}; }
   else l = {titulo: nome, autor: '', caps: txtParaCapitulos(await file.text())};
   await salvar({id: crypto.randomUUID(), ...l, cap: 0, scroll: 0, add: Date.now()});
 }
+$('btUrl').onclick = async () => {
+  const u = prompt('Cole o link direto do livro (.epub, .pdf ou .txt):'); if (!u) return;
+  try {
+    const r = await fetch(u); if (!r.ok) throw new Error('HTTP ' + r.status);
+    const b = await r.blob(), n = decodeURIComponent(new URL(u).pathname.split('/').pop() || 'livro');
+    const ext = /\.(epub|pdf|txt|html?)$/i.test(n) ? '' : b.type.includes('pdf') ? '.pdf' : b.type.includes('epub') ? '.epub' : '.txt';
+    await importar(new File([b], n + ext)); mostrarBiblioteca();
+  } catch (x) { alert('Não consegui baixar (' + x.message + ').\nMuitos sites bloqueiam download direto pelo navegador. Baixe o arquivo e use "+ Adicionar".'); }
+};
 $('arq').onchange = async e => {
   for (const f of e.target.files) { try { await importar(f); } catch (x) { alert('Erro em ' + f.name + ': ' + x.message); } }
   e.target.value = ''; mostrarBiblioteca();
@@ -134,7 +169,7 @@ $('arq').onchange = async e => {
 // ---------- Biblioteca ----------
 async function mostrarBiblioteca() {
   $('leitor').style.display = 'none'; $('biblioteca').style.display = '';
-  ['voltar', 'btSum', 'btAj'].forEach(i => $(i).style.display = 'none'); $('btAdd').style.display = '';
+  ['voltar', 'btSum', 'btAj', 'btOuvir'].forEach(i => $(i).style.display = 'none'); $('btAdd').style.display = $('btUrl').style.display = ''; parar();
   $('titulo').textContent = '📚 Minha Biblioteca'; ['painel', 'sumario'].forEach(i => $(i).style.display = 'none');
   const ls = (await listar()).sort((a, b) => (b.lido || b.add) - (a.lido || a.add));
   $('grade').innerHTML = ls.length ? '' : '';
@@ -166,14 +201,26 @@ function gravar() {
 }
 function abrir(l) {
   atual = l; $('biblioteca').style.display = 'none'; $('leitor').style.display = 'block';
-  ['voltar', 'btSum', 'btAj'].forEach(i => $(i).style.display = ''); $('btAdd').style.display = 'none';
+  ['voltar', 'btSum', 'btAj', 'btOuvir'].forEach(i => $(i).style.display = ''); $('btAdd').style.display = $('btUrl').style.display = 'none';
   $('titulo').textContent = l.titulo;
   $('sumario').innerHTML = l.caps.map((c, n) => `<a data-n="${n}">${esc(c.titulo)}</a>`).join('');
   aplicarCfg(); renderCap(l.cap, l.scroll);
 }
+// ---------- Ouvir (voz do navegador) ----------
+let falando = false;
+function parar() { falando = false; speechSynthesis.cancel(); $('btOuvir').textContent = '🔊'; }
+function falar(i = 0) {
+  const ps = [...$('texto').querySelectorAll('p,h1,h2,h3,li')].filter(e => e.textContent.trim());
+  if (!falando || i >= ps.length) { if (falando && atual.cap < atual.caps.length - 1) { renderCap(atual.cap + 1); scrollTo(0, 0); return setTimeout(() => falar(0), 100); } return parar(); }
+  ps[i].scrollIntoView({block: 'center', behavior: 'smooth'}); ps[i].style.background = 'var(--line)';
+  const u = new SpeechSynthesisUtterance(ps[i].textContent); u.lang = 'pt-BR'; u.rate = 1;
+  u.onend = u.onerror = () => { ps[i].style.background = ''; falar(i + 1); };
+  speechSynthesis.speak(u);
+}
+$('btOuvir').onclick = () => { if (falando) return parar(); falando = true; $('btOuvir').textContent = '⏹'; falar(0); };
 const ir = d => { const n = atual.cap + d; if (n >= 0 && n < atual.caps.length) { renderCap(n); scrollTo(0, 0); } };
-$('ant').onclick = () => ir(-1); $('prox').onclick = () => ir(1);
-$('voltar').onclick = async () => { clearTimeout(tmr); await salvar(atual); mostrarBiblioteca(); };
+$('ant').onclick = () => { parar(); ir(-1); }; $('prox').onclick = () => { parar(); ir(1); };
+$('voltar').onclick = async () => { parar(); clearTimeout(tmr); await salvar(atual); mostrarBiblioteca(); };
 $('btSum').onclick = () => $('sumario').style.display = $('sumario').style.display === 'block' ? 'none' : 'block';
 $('btAj').onclick = () => $('painel').style.display = $('painel').style.display === 'block' ? 'none' : 'block';
 $('sumario').onclick = e => { if (e.target.dataset.n) { renderCap(+e.target.dataset.n); scrollTo(0, 0); $('sumario').style.display = 'none'; } };
