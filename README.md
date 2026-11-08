@@ -28,3 +28,9 @@ O programa se atualiza sozinho toda vez que abre.
 1. Altere `mouse_toque.py` e aumente `VERSAO` (ex.: `1.2` → `1.3`).
 2. Coloque o mesmo número em `versao.json`, com as novidades.
 3. Envie os dois arquivos para a branch `main`.
+
+## Outros projetos neste repositório
+
+- [`protecao-familia/`](protecao-familia/): apps de antifurto/localização para o
+  celular da família (ícone de engrenagem, protegido por PIN). Veja o
+  [README](protecao-familia/README.md) para configurar.

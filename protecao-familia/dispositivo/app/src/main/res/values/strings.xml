@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Proteção Família</string>
+    <string name="admin_descricao">Permite travar a tela e proteger este celular remotamente, caso ele seja perdido ou roubado.</string>
+</resources>
