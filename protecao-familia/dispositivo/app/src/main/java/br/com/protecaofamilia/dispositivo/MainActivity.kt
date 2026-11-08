@@ -229,19 +229,27 @@ class MainActivity : Activity() {
                 )
             try { startActivity(intent) } catch (_: Exception) {}
         }
+        DonoDispositivo.aplicarProtecaoMaxima(this)
         IniciarServico.agora(this)
     }
 
     // ------------------------------------------------------------ status
 
     private fun telaStatus() {
+        val maxima = DonoDispositivo.ehDono(this)
         raiz.addView(texto(15f, "#4ADE80", true).apply {
-            text = "✓ Protegido"
+            text = if (maxima) "✓✓ Protegido (proteção máxima)" else "✓ Protegido"
             setPadding(0, dp(20), 0, dp(6))
         })
         raiz.addView(texto(14f, "#8B93A4").apply {
             text = "Celular: ${Prefs.nomeDispositivo}\nFamília: ${Prefs.codigoFamilia}"
         })
+        if (!maxima) {
+            raiz.addView(texto(13f, "#8FB4FF").apply {
+                text = "Dá para reforçar a proteção (impedir formatar e desinstalar com mais força). Veja ⚙ → \"Proteção máxima\"."
+                setPadding(0, dp(10), 0, 0)
+            })
+        }
         raiz.addView(texto(13f, "#6B7280").apply {
             text = "Este app manda a localização para quem cuida deste celular, mesmo com a tela apagada, " +
                 "e avisa se o celular for desligado, tiver a bateria crítica, ou trocarem o chip."

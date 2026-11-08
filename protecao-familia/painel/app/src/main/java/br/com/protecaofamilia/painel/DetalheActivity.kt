@@ -1,6 +1,7 @@
 package br.com.protecaofamilia.painel
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
@@ -8,6 +9,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.util.TypedValue
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -63,6 +65,7 @@ class DetalheActivity : Activity() {
         botoes.addView(botaoAcao("🔒 Travar tela") { FamiliaRepo.enviarComando(Prefs.codigoFamilia, idDispositivo, "travar") })
         botoes.addView(botaoAcao("📍 Localizar agora") { FamiliaRepo.enviarComando(Prefs.codigoFamilia, idDispositivo, "localizar") })
         botoes.addView(botaoAcao("🗺 Abrir no Google Maps", principal = false) { abrirNoMaps() })
+        botoes.addView(botaoAcao("🗑 Apagar tudo (último recurso)", principal = false) { confirmarApagarTudo1() })
         raiz.addView(botoes)
 
         setContentView(raiz)
@@ -117,6 +120,48 @@ class DetalheActivity : Activity() {
         }
     }
 
+    // ---------------------------------------------------- apagar tudo (3 confirmações)
+
+    private fun confirmarApagarTudo1() {
+        AlertDialog.Builder(this)
+            .setTitle("Apagar tudo?")
+            .setMessage(
+                "Isso apaga PERMANENTEMENTE todos os dados deste celular (fotos, contas, tudo), " +
+                    "como uma formatação de fábrica. Só funciona se o celular estiver com a \"proteção " +
+                    "máxima\" ativa (Device Owner). Tem certeza?"
+            )
+            .setPositiveButton("Continuar") { _, _ -> confirmarApagarTudo2() }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun confirmarApagarTudo2() {
+        AlertDialog.Builder(this)
+            .setTitle("Essa ação não pode ser desfeita")
+            .setMessage("Não existe como recuperar os dados depois de apagados. Confirma mesmo?")
+            .setPositiveButton("Sim, confirmar") { _, _ -> confirmarApagarTudo3() }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun confirmarApagarTudo3() {
+        val campo = EditText(this).apply { hint = "Digite APAGAR para confirmar" }
+        AlertDialog.Builder(this)
+            .setTitle("Última confirmação")
+            .setMessage("O celular ainda vai ter 15 segundos, na tela dele, para cancelar com o PIN.")
+            .setView(campo)
+            .setPositiveButton("Apagar") { _, _ ->
+                if (campo.text.toString().trim().equals("APAGAR", ignoreCase = true)) {
+                    FamiliaRepo.enviarComando(Prefs.codigoFamilia, idDispositivo, "apagar_tudo")
+                    Toast.makeText(this, "Comando enviado.", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this, "Digite exatamente \"APAGAR\". Nada foi enviado.", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
     private fun abrirNoMaps() {
         val p = ultimoPonto ?: return
         val uri = Uri.parse("geo:${p.latitude},${p.longitude}?q=${p.latitude},${p.longitude}")
@@ -129,6 +174,9 @@ class DetalheActivity : Activity() {
         "chip_trocado" -> "⚠️ O chip (SIM) deste celular foi trocado."
         "protecao_desativada" -> "⚠️ A proteção deste celular foi desativada."
         "travar_falhou" -> "Não consegui travar a tela (administrador não ativo)."
+        "apagar_iniciado" -> "🗑 Apagamento remoto iniciado. O celular tem 15s para cancelar."
+        "apagar_cancelado" -> "✓ O apagamento foi cancelado no próprio celular, com o PIN."
+        "apagar_falhou" -> "✗ Não consegui apagar: este celular não está em \"proteção máxima\" (Device Owner)."
         else -> detalhe.ifBlank { tipo }
     }
 

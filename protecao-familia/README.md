@@ -24,7 +24,12 @@ servidor próprio no ar.
 - ✅ Aviso de melhor esforço se trocarem o chip (SIM) do aparelho.
 - ✅ Dificulta a remoção do app (exige PIN) — mas qualquer app de administrador de
   dispositivo pode ser desativado pelas Configurações do Android; quando isso
-  acontece, o painel recebe um aviso na hora.
+  acontece, o painel recebe um aviso na hora. Dá para subir pra um nível mais forte
+  (veja "Proteção máxima" abaixo).
+- ✅ **Apagar tudo remotamente** (como uma formatação de fábrica), em último caso —
+  só funciona com a "proteção máxima" ativa. Protegido por 3 confirmações no painel
+  (incluindo digitar "APAGAR") e por 15 segundos de contagem na tela do celular, onde
+  ainda dá pra cancelar com o PIN, caso o comando tenha sido disparado por engano.
 - ❌ **Não existe jeito de rastrear um celular genuinamente desligado (sem bateria/sem
   energia).** Nenhum app de terceiros consegue — isso só existe nativamente em
   alguns iPhones recentes (rede "Localizar") e em alguns Android recentes
@@ -38,6 +43,46 @@ servidor próprio no ar.
 No celular do seu filho: Configurações → Google → "Encontre Meu Dispositivo" → ativar,
 e também ativar "Permitir localização via rede Bluetooth" (em aparelhos que têm essa
 opção). Isso funciona em paralelo com o nosso app e cobre parte do cenário "desligado".
+
+## Proteção máxima (Device Owner) — opcional, mas recomendado
+
+O app já funciona sem isso (nível "Device Admin"). Mas dá pra subir pra um nível mais
+forte, chamado **Device Owner** — o mesmo usado por celulares de empresa — que:
+
+- Bloqueia o "Apagar todos os dados"/formatar de fábrica pelas Configurações.
+- Bloqueia a desinstalação do app pelas Configurações (nem a opção aparece).
+- Bloqueia o Modo Seguro (um jeito comum de burlar apps assim).
+- É o que permite o botão **"Apagar tudo"** (apagamento remoto de verdade) funcionar
+  no painel.
+
+**O preço disso**: só dá pra ativar num celular **zerado**, antes de configurar
+qualquer conta Google — ou seja, exige formatar o celular do seu filho (ou usar um
+celular novo) e fazer esse passo ANTES de ele configurar o aparelho normalmente.
+Depois de ativado, ele continua usando o celular normalmente, só que com essas
+travas extras.
+
+⚠️ Dependendo da versão do Android/fabricante, esse recurso pode estar mais restrito
+nos anos mais recentes — se o comando abaixo falhar, o app continua funcionando
+normal, só sem essas travas extras.
+
+### Como ativar
+
+1. Zere o celular do seu filho (Configurações → Sistema → Opções de redefinição →
+   Apagar todos os dados), ou use um celular novo — e **não adicione nenhuma conta**
+   ainda na tela de configuração inicial.
+2. Ative as Opções do desenvolvedor (tocar 7 vezes em Configurações → Sobre o
+   telefone → Número da versão) e, dentro delas, a **Depuração USB**.
+3. Conecte esse celular por cabo USB no seu PC. Instale o
+   [ADB](https://developer.android.com/tools/releases/platform-tools) no PC, se
+   ainda não tiver.
+4. No PC, dentro da pasta `dispositivo`, gere e instale o APK:
+   ```
+   adb install app/build/outputs/apk/debug/app-debug.apk
+   adb shell dpm set-device-owner br.com.protecaofamilia.dispositivo/.AdminReceiver
+   ```
+5. Abra o app no celular e siga a configuração normal (vincular, PIN, permissões).
+   Quando terminar, a tela principal mostra **"✓✓ Protegido (proteção máxima)"**.
+6. Agora sim, pode adicionar a conta Google e usar o celular normalmente.
 
 ## Como configurar (uma vez só)
 

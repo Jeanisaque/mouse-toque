@@ -44,6 +44,13 @@
             android:turnScreenOn="true"
             android:excludeFromRecents="true" />
 
+        <activity
+            android:name=".ApagarActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true" />
+
         <service
             android:name=".LocalizacaoService"
             android:exported="false"

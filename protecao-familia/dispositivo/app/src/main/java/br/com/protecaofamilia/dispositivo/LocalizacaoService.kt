@@ -149,6 +149,7 @@ class LocalizacaoService : Service() {
                 "parar_alarme" -> AlarmeActivity.pararPorComando()
                 "travar" -> travarTela()
                 "localizar" -> localizarAgora()
+                "apagar_tudo" -> ApagarActivity.disparar(this)
             }
             FamiliaRepo.marcarComandoAtendido(Prefs.codigoFamilia, Prefs.idDispositivo, idComando)
         }

@@ -48,6 +48,7 @@ class ConfiguracoesActivity : Activity() {
         })
         raiz.addView(linha("Testar alarme") { AlarmeActivity.disparar(this) })
         raiz.addView(linha("Trocar PIN") { trocarPin() })
+        raiz.addView(linha("Proteção máxima (Device Owner)") { statusProtecaoMaxima() })
         raiz.addView(linha("Desativar proteção", perigo = true) { confirmarDesativar() })
 
         setContentView(ScrollView(this).apply {
@@ -92,6 +93,30 @@ class ConfiguracoesActivity : Activity() {
         }.setNegativeButton("Cancelar", null).show()
     }
 
+    private fun statusProtecaoMaxima() {
+        if (DonoDispositivo.ehDono(this)) {
+            AlertDialog.Builder(this)
+                .setTitle("Proteção máxima ativa")
+                .setMessage(
+                    "Este app está configurado como \"Device Owner\": formatar o celular e desinstalar o " +
+                        "app pelas Configurações estão bloqueados, e o apagamento remoto funciona de verdade."
+                )
+                .setPositiveButton("OK", null).show()
+        } else {
+            AlertDialog.Builder(this)
+                .setTitle("Como ativar a proteção máxima")
+                .setMessage(
+                    "Precisa ser feito com o celular zerado, antes de configurar qualquer conta " +
+                        "(ou seja, só dá pra fazer de novo formatando este celular). No PC, com o celular " +
+                        "conectado por USB e a depuração USB ativada, rode:\n\n" +
+                        "adb install dispositivo.apk\n" +
+                        "adb shell dpm set-device-owner br.com.protecaofamilia.dispositivo/.AdminReceiver\n\n" +
+                        "Depois disso, abra o app de novo neste celular."
+                )
+                .setPositiveButton("OK", null).show()
+        }
+    }
+
     private fun confirmarDesativar() {
         val campo = EditText(this).apply {
             hint = "Digite o PIN para confirmar"
@@ -117,6 +142,7 @@ class ConfiguracoesActivity : Activity() {
             Prefs.codigoFamilia, Prefs.idDispositivo,
             "protecao_desativada", "Desativado pelo PIN, no próprio celular"
         )
+        DonoDispositivo.removerProtecaoMaxima(this)
         val gerente = getSystemService(DevicePolicyManager::class.java)
         val componente = ComponentName(this, AdminReceiver::class.java)
         try { if (gerente != null && gerente.isAdminActive(componente)) gerente.removeActiveAdmin(componente) } catch (_: Exception) {}
