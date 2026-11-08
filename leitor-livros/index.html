@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Leitor de Livros</title>
+<style>
+:root{--bg:#faf7f2;--fg:#222;--card:#fff;--accent:#8b5e34;--muted:#777;--line:#e4ddd2}
+[data-tema=escuro]{--bg:#16181c;--fg:#d8d8d8;--card:#202329;--accent:#d9a066;--muted:#8a8f98;--line:#2e323a}
+[data-tema=sepia]{--bg:#f1e4c8;--fg:#4a3820;--card:#f7ecd5;--accent:#8b5e34;--muted:#8a7655;--line:#dccba6}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;display:flex;gap:8px;align-items:center;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--line)}
+header h1{font-size:1.1rem;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+button,.btn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 12px;font-size:.9rem;cursor:pointer}
+button.sec{background:transparent;color:var(--fg);border:1px solid var(--line)}
+main{max-width:900px;margin:0 auto;padding:16px}
+.grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.livro{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column}
+.capa{aspect-ratio:2/3;display:flex;align-items:center;justify-content:center;padding:12px;text-align:center;font-weight:600;background:linear-gradient(135deg,var(--accent),#3c2a18);color:#fff}
+.livro .info{padding:8px 10px;font-size:.8rem;color:var(--muted)}
+.livro .info b{display:block;color:var(--fg);font-size:.9rem}
+.barra{height:4px;background:var(--line)}.barra i{display:block;height:100%;background:var(--accent)}
+.vazio{text-align:center;color:var(--muted);padding:60px 0}
+#leitor{display:none}
+#texto{font-family:Georgia,serif;line-height:1.7;max-width:680px;margin:0 auto;padding:16px 16px 80px;overflow-wrap:break-word}
+#texto img{max-width:100%}
+#texto h1,#texto h2,#texto h3{line-height:1.3}
+#painel{display:none;position:fixed;right:12px;top:56px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;z-index:6;width:230px}
+#painel label{display:block;margin:8px 0 4px;font-size:.8rem;color:var(--muted)}
+#painel select,#painel input{width:100%}
+#sumario{display:none;position:fixed;left:12px;top:56px;bottom:12px;width:260px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;z-index:6}
+#sumario a{display:block;padding:8px;border-radius:6px;cursor:pointer;font-size:.9rem}
+#sumario a:hover,#sumario a.at{background:var(--line)}
+#nav{position:fixed;bottom:0;left:0;right:0;display:flex;gap:8px;align-items:center;padding:8px 16px;background:var(--card);border-top:1px solid var(--line)}
+#nav span{flex:1;text-align:center;font-size:.8rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <button class="sec" id="voltar" style="display:none">← Biblioteca</button>
+  <h1 id="titulo">📚 Minha Biblioteca</h1>
+  <button class="sec" id="btSum" style="display:none">☰</button>
+  <button class="sec" id="btAj" style="display:none">Aa</button>
+  <label class="btn" id="btAdd">+ Adicionar<input type="file" id="arq" accept=".epub,.txt" multiple hidden></label>
+</header>
+
+<main id="biblioteca"><div class="grade" id="grade"></div></main>
+
+<div id="leitor">
+  <div id="sumario"></div>
+  <div id="painel">
+    <label>Tema</label>
+    <select id="tema"><option value="claro">Claro</option><option value="sepia">Sépia</option><option value="escuro">Escuro</option></select>
+    <label>Tamanho da letra</label><input type="range" id="tam" min="14" max="32" value="19">
+    <label>Fonte</label>
+    <select id="fonte"><option value="Georgia,serif">Serifada</option><option value="system-ui,sans-serif">Sem serifa</option></select>
+  </div>
+  <article id="texto"></article>
+  <div id="nav"><button class="sec" id="ant">‹ Anterior</button><span id="pos"></span><button class="sec" id="prox">Próximo ›</button></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+// ---------- Banco (IndexedDB) ----------
+const db = new Promise((ok, err) => {
+  const r = indexedDB.open('leitor-livros', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('livros', {keyPath: 'id'});
+  r.onsuccess = () => ok(r.result); r.onerror = () => err(r.error);
+});
+const tx = async (modo, fn) => { const d = await db; return new Promise((ok, err) => {
+  const t = d.transaction('livros', modo), s = t.objectStore('livros'), q = fn(s);
+  t.oncomplete = () => ok(q && q.result); t.onerror = () => err(t.error); }); };
+const listar = () => tx('readonly', s => s.getAll());
+const salvar = l => tx('readwrite', s => s.put(l));
+const apagar = id => tx('readwrite', s => s.delete(id));
+
+// ---------- Utilidades ----------
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cfg = Object.assign({tema:'claro', tam:19, fonte:'Georgia,serif'}, JSON.parse(localStorage.getItem('cfg') || '{}'));
+function aplicarCfg() {
+  document.documentElement.dataset.tema = cfg.tema;
+  $('texto').style.fontSize = cfg.tam + 'px'; $('texto').style.fontFamily = cfg.fonte;
+  $('tema').value = cfg.tema; $('tam').value = cfg.tam; $('fonte').value = cfg.fonte;
+  localStorage.setItem('cfg', JSON.stringify(cfg));
+}
+
+// ---------- Importação ----------
+function txtParaCapitulos(txt) {
+  const paras = txt.replace(/\r/g, '').split(/\n{2,}/).map(p => '<p>' + esc(p.trim()).replace(/\n/g, ' ') + '</p>').filter(p => p !== '<p></p>');
+  const caps = [], tam = 40;
+  for (let i = 0; i < paras.length; i += tam) caps.push({titulo: 'Parte ' + (caps.length + 1), html: paras.slice(i, i + tam).join('')});
+  return caps.length ? caps : [{titulo: 'Texto', html: '<p>(vazio)</p>'}];
+}
+function limpar(html) {
+  const d = new DOMParser().parseFromString(html, 'text/html');
+  d.querySelectorAll('script,style,link,iframe,object,img,svg,image').forEach(e => e.remove());
+  d.querySelectorAll('*').forEach(e => [...e.attributes].forEach(a => { if (/^on|^(style|class|id)$/.test(a.name)) e.removeAttribute(a.name); }));
+  return d.body.innerHTML;
+}
+const resolver = (base, rel) => new URL(rel, 'http://x/' + base).pathname.slice(1);
+async function lerEpub(buf) {
+  const zip = await JSZip.loadAsync(buf), xml = async p => new DOMParser().parseFromString(await zip.file(decodeURIComponent(p)).async('string'), 'application/xml');
+  const opfPath = (await xml('META-INF/container.xml')).querySelector('rootfile').getAttribute('full-path');
+  const opf = await xml(opfPath), dir = opfPath.includes('/') ? opfPath.replace(/[^/]*$/, '') : '';
+  const meta = t => (opf.getElementsByTagNameNS('*', t)[0] || {}).textContent || '';
+  const itens = {}; opf.querySelectorAll('manifest > item').forEach(i => itens[i.getAttribute('id')] = i.getAttribute('href'));
+  const caps = [];
+  for (const ref of opf.querySelectorAll('spine > itemref')) {
+    const href = itens[ref.getAttribute('idref')]; if (!href) continue;
+    const f = zip.file(decodeURIComponent(resolver(dir, href))); if (!f) continue;
+    const doc = new DOMParser().parseFromString(await f.async('string'), 'text/html');
+    const h = doc.querySelector('h1,h2,h3');
+    const html = limpar(doc.body ? doc.body.innerHTML : '');
+    if (html.replace(/<[^>]+>/g, '').trim().length < 20) continue;
+    caps.push({titulo: (h && h.textContent.trim()) || 'Capítulo ' + (caps.length + 1), html});
+  }
+  if (!caps.length) throw new Error('EPUB sem conteúdo legível');
+  return {titulo: meta('title') || 'Sem título', autor: meta('creator'), caps};
+}
+async function importar(file) {
+  const nome = file.name.replace(/\.[^.]+$/, '');
+  let l;
+  if (/\.epub$/i.test(file.name)) l = await lerEpub(await file.arrayBuffer());
+  else l = {titulo: nome, autor: '', caps: txtParaCapitulos(await file.text())};
+  await salvar({id: crypto.randomUUID(), ...l, cap: 0, scroll: 0, add: Date.now()});
+}
+$('arq').onchange = async e => {
+  for (const f of e.target.files) { try { await importar(f); } catch (x) { alert('Erro em ' + f.name + ': ' + x.message); } }
+  e.target.value = ''; mostrarBiblioteca();
+};
+
+// ---------- Biblioteca ----------
+async function mostrarBiblioteca() {
+  $('leitor').style.display = 'none'; $('biblioteca').style.display = '';
+  ['voltar', 'btSum', 'btAj'].forEach(i => $(i).style.display = 'none'); $('btAdd').style.display = '';
+  $('titulo').textContent = '📚 Minha Biblioteca'; ['painel', 'sumario'].forEach(i => $(i).style.display = 'none');
+  const ls = (await listar()).sort((a, b) => (b.lido || b.add) - (a.lido || a.add));
+  $('grade').innerHTML = ls.length ? '' : '';
+  if (!ls.length) { $('grade').innerHTML = '<div class="vazio" style="grid-column:1/-1">Nenhum livro ainda.<br>Toque em <b>+ Adicionar</b> e escolha um arquivo .epub ou .txt.</div>'; return; }
+  for (const l of ls) {
+    const pct = Math.round(((l.cap + l.scroll) / l.caps.length) * 100), el = document.createElement('div');
+    el.className = 'livro';
+    el.innerHTML = `<div class="capa">${esc(l.titulo)}</div><div class="barra"><i style="width:${pct}%"></i></div><div class="info"><b>${esc(l.autor || 'Autor desconhecido')}</b>${pct}% lido · <a href="#" data-del style="color:#c44">excluir</a></div>`;
+    el.onclick = e => { if (e.target.dataset.del !== undefined) { e.preventDefault(); e.stopPropagation(); if (confirm('Excluir "' + l.titulo + '"?')) apagar(l.id).then(mostrarBiblioteca); } else abrir(l); };
+    $('grade').append(el);
+  }
+}
+
+// ---------- Leitor ----------
+let atual = null;
+function renderCap(i, scroll = 0) {
+  atual.cap = i; $('texto').innerHTML = atual.caps[i].html;
+  $('pos').textContent = `${i + 1} / ${atual.caps.length} · ${atual.caps[i].titulo.slice(0, 30)}`;
+  document.querySelectorAll('#sumario a').forEach((a, n) => a.classList.toggle('at', n === i));
+  requestAnimationFrame(() => scrollTo(0, scroll * (document.documentElement.scrollHeight - innerHeight)));
+  gravar();
+}
+let tmr;
+function gravar() {
+  clearTimeout(tmr); tmr = setTimeout(() => {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    atual.scroll = max > 0 ? Math.min(scrollY / max, .99) : 0; atual.lido = Date.now(); salvar(atual);
+  }, 400);
+}
+function abrir(l) {
+  atual = l; $('biblioteca').style.display = 'none'; $('leitor').style.display = 'block';
+  ['voltar', 'btSum', 'btAj'].forEach(i => $(i).style.display = ''); $('btAdd').style.display = 'none';
+  $('titulo').textContent = l.titulo;
+  $('sumario').innerHTML = l.caps.map((c, n) => `<a data-n="${n}">${esc(c.titulo)}</a>`).join('');
+  aplicarCfg(); renderCap(l.cap, l.scroll);
+}
+const ir = d => { const n = atual.cap + d; if (n >= 0 && n < atual.caps.length) { renderCap(n); scrollTo(0, 0); } };
+$('ant').onclick = () => ir(-1); $('prox').onclick = () => ir(1);
+$('voltar').onclick = async () => { clearTimeout(tmr); await salvar(atual); mostrarBiblioteca(); };
+$('btSum').onclick = () => $('sumario').style.display = $('sumario').style.display === 'block' ? 'none' : 'block';
+$('btAj').onclick = () => $('painel').style.display = $('painel').style.display === 'block' ? 'none' : 'block';
+$('sumario').onclick = e => { if (e.target.dataset.n) { renderCap(+e.target.dataset.n); scrollTo(0, 0); $('sumario').style.display = 'none'; } };
+$('tema').onchange = e => { cfg.tema = e.target.value; aplicarCfg(); };
+$('tam').oninput = e => { cfg.tam = +e.target.value; aplicarCfg(); };
+$('fonte').onchange = e => { cfg.fonte = e.target.value; aplicarCfg(); };
+addEventListener('scroll', () => atual && $('leitor').style.display === 'block' && gravar());
+addEventListener('keydown', e => { if ($('leitor').style.display === 'block') { if (e.key === 'ArrowRight') ir(1); if (e.key === 'ArrowLeft') ir(-1); } });
+
+aplicarCfg(); mostrarBiblioteca();
+</script>
+</body>
+</html>
