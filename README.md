@@ -31,4 +31,11 @@ O programa se atualiza sozinho toda vez que abre.
 
 ## Leitor de Livros (APK)
 
-App para ler EPUB, PDF, TXT e HTML, com leitura em voz alta que avança sozinha pelos capítulos. Código web em `leitor-livros/`, empacotado como APK (Capacitor) em `leitor-livros-app/`. O APK é gerado pelo workflow `app-leitor.yml` e publicado na release `leitor`.
+App para ler EPUB, PDF, TXT e HTML, com leitura em voz alta que avança sozinha pelos capítulos, mesmo com a tela apagada.
+
+- Escolha de voz e velocidade, timer para parar de ler (minutos ou fim do capítulo).
+- Notificação com botões Pausar/Continuar e Parar durante a leitura.
+- Procura livros baixados em Download/Documentos (pede acesso aos arquivos) e baixa livros por link.
+- Atualiza sozinho: ao abrir, confere a release `leitor` e oferece instalar a versão nova.
+
+Código web em `leitor-livros/`, empacotado como APK (Capacitor) em `leitor-livros-app/`. O workflow `app-leitor.yml` gera o APK e publica na release `leitor`. Para a atualização automática funcionar, o APK precisa ser sempre assinado com a mesma chave: use os segredos `KEYSTORE_B64` e `KEYSTORE_PASS` (os mesmos do app do celular, alias `touchcell`).

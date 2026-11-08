@@ -12,9 +12,16 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: app-leitor
+  cancel-in-progress: true
+
 jobs:
   apk:
     runs-on: ubuntu-latest
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: "1.0.${{ github.run_number }}"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,21 +35,42 @@ jobs:
           npm install
           npm run web
           npx cap add android
+          npm run android
           npx cap sync android
 
       - name: Gerar o APK
         working-directory: leitor-livros-app/android
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk ../../LeitorDeLivros.apk
+          if [ -n "$KEYSTORE_B64" ]; then
+            # Mesma chave sempre: so assim o celular aceita a atualizacao por cima do app instalado.
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/touchcell.jks"
+            ./gradlew --no-daemon assembleRelease
+            BT=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)
+            "$BT"zipalign -f 4 app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/alinhado.apk"
+            "$BT"apksigner sign --ks "$RUNNER_TEMP/touchcell.jks" --ks-key-alias touchcell \
+              --ks-pass env:KEYSTORE_PASS --key-pass env:KEYSTORE_PASS \
+              --out ../LeitorDeLivros.apk "$RUNNER_TEMP/alinhado.apk"
+          else
+            echo "::warning::Sem KEYSTORE_B64: APK de teste. A atualizacao automatica so funciona com a chave fixa."
+            ./gradlew --no-daemon assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk ../LeitorDeLivros.apk
+          fi
+          ls -la ../LeitorDeLivros.apk
 
       - uses: actions/upload-artifact@v4
-        with: { name: LeitorDeLivros, path: LeitorDeLivros.apk }
+        with: { name: LeitorDeLivros, path: leitor-livros-app/LeitorDeLivros.apk }
 
       - name: Publicar
-        env: { GH_TOKEN: "${{ github.token }}" }
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          printf '{"versionCode": %s, "versionName": "%s"}\n' "$VERSION_CODE" "$VERSION_NAME" > versao-leitor.json
           gh release delete leitor -y --cleanup-tag || true
-          gh release create leitor LeitorDeLivros.apk --title "Leitor de Livros 1.0.${{ github.run_number }}" \
-            --notes "Baixe LeitorDeLivros.apk no celular e instale (permita 'fontes desconhecidas')." --latest=false
+          gh release create leitor leitor-livros-app/LeitorDeLivros.apk versao-leitor.json \
+            --title "Leitor de Livros $VERSION_NAME" \
+            --notes "Baixe LeitorDeLivros.apk no celular e instale (permita fontes desconhecidas). O app se atualiza sozinho." \
+            --latest=false

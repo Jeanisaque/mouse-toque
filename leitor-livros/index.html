@@ -34,6 +34,12 @@ main{max-width:900px;margin:0 auto;padding:16px}
 #sumario a:hover,#sumario a.at{background:var(--line)}
 #nav{position:fixed;bottom:0;left:0;right:0;display:flex;gap:8px;align-items:center;padding:8px 16px;background:var(--card);border-top:1px solid var(--line)}
 #nav span{flex:1;text-align:center;font-size:.8rem;color:var(--muted)}
+.caixaCfg{position:fixed;inset:0;background:#0008;z-index:20;display:none;align-items:center;justify-content:center;padding:16px}
+.caixaCfg>div{background:var(--card);border-radius:12px;padding:16px;max-width:460px;width:100%;max-height:90vh;overflow:auto}
+.caixaCfg h2{margin:0 0 8px;font-size:1.1rem}.caixaCfg p{margin:10px 0 4px;font-size:.9rem}
+.caixaCfg button{margin:2px 4px 2px 0}.ok{color:#2a8a3a}.nok{color:#c44}
+.achado{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:.85rem;cursor:pointer}
+#painel{max-height:calc(100vh - 120px);overflow:auto}
 </style>
 </head>
 <body>
@@ -42,7 +48,9 @@ main{max-width:900px;margin:0 auto;padding:16px}
   <h1 id="titulo">📚 Minha Biblioteca</h1>
   <button class="sec" id="btSum" style="display:none">☰</button>
   <button class="sec" id="btAj" style="display:none">Aa</button>
+  <button class="sec" id="btCfg">⚙</button>
   <button class="sec" id="btUrl">🔗 Link</button>
+  <button class="sec" id="btParar" style="display:none">⏹</button>
   <button class="sec" id="btOuvir" style="display:none">🔊</button>
   <label class="btn" id="btAdd">+ Adicionar<input type="file" id="arq" accept=".epub,.txt,.pdf,.html,.htm" multiple hidden></label>
 </header>
@@ -57,10 +65,25 @@ main{max-width:900px;margin:0 auto;padding:16px}
     <label>Tamanho da letra</label><input type="range" id="tam" min="14" max="32" value="19">
     <label>Fonte</label>
     <select id="fonte"><option value="Georgia,serif">Serifada</option><option value="system-ui,sans-serif">Sem serifa</option></select>
+    <label>Voz</label><select id="voz"></select>
+    <label>Velocidade da voz: <span id="velv"></span>x</label><input type="range" id="vel" min="0.6" max="2" step="0.1">
+    <label>Parar de ler sozinho</label>
+    <select id="timer"><option value="0">Desligado</option><option value="15">Em 15 min</option><option value="30">Em 30 min</option><option value="45">Em 45 min</option><option value="60">Em 1 hora</option><option value="90">Em 1h30</option><option value="120">Em 2 horas</option><option value="cap">No fim do capítulo</option></select>
+    <button class="sec" id="testar" style="margin-top:8px;width:100%">▶ Testar voz</button>
   </div>
   <article id="texto"></article>
   <div id="nav"><button class="sec" id="ant">‹ Anterior</button><span id="pos"></span><button class="sec" id="prox">Próximo ›</button></div>
 </div>
+
+<div class="caixaCfg" id="cfgApp"><div>
+  <h2>Ajustes do app</h2>
+  <p id="stNotif"></p><button id="pNotif">Permitir notificações</button>
+  <p id="stArq"></p><button id="pArq">Permitir acesso aos arquivos</button>
+  <p class="ok">✔ Internet: permitida (baixar livros por link e atualizar o app).</p>
+  <p><button id="bProc">📂 Procurar livros no celular</button></p><div id="achados"></div>
+  <p><button id="bAtu">⟳ Verificar atualização</button> <span id="stAtu"></span></p>
+  <p><button class="sec" id="fechaCfg">Fechar</button></p>
+</div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -81,11 +104,11 @@ const apagar = id => tx('readwrite', s => s.delete(id));
 // ---------- Utilidades ----------
 const $ = id => document.getElementById(id);
 const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const cfg = Object.assign({tema:'claro', tam:19, fonte:'Georgia,serif'}, JSON.parse(localStorage.getItem('cfg') || '{}'));
+const cfg = Object.assign({tema:'claro', tam:19, fonte:'Georgia,serif', voz:'', vel:1}, JSON.parse(localStorage.getItem('cfg') || '{}'));
 function aplicarCfg() {
   document.documentElement.dataset.tema = cfg.tema;
   $('texto').style.fontSize = cfg.tam + 'px'; $('texto').style.fontFamily = cfg.fonte;
-  $('tema').value = cfg.tema; $('tam').value = cfg.tam; $('fonte').value = cfg.fonte;
+  $('tema').value = cfg.tema; $('vel').value = cfg.vel; $('velv').textContent = cfg.vel; $('tam').value = cfg.tam; $('fonte').value = cfg.fonte;
   localStorage.setItem('cfg', JSON.stringify(cfg));
 }
 
@@ -155,8 +178,7 @@ async function importar(file) {
 $('btUrl').onclick = async () => {
   const u = prompt('Cole o link direto do livro (.epub, .pdf ou .txt):'); if (!u) return;
   try {
-    const r = await fetch(u); if (!r.ok) throw new Error('HTTP ' + r.status);
-    const b = await r.blob(), n = decodeURIComponent(new URL(u).pathname.split('/').pop() || 'livro');
+    const b = await baixar(u), n = decodeURIComponent(new URL(u).pathname.split('/').pop() || 'livro');
     const ext = /\.(epub|pdf|txt|html?)$/i.test(n) ? '' : b.type.includes('pdf') ? '.pdf' : b.type.includes('epub') ? '.epub' : '.txt';
     await importar(new File([b], n + ext)); mostrarBiblioteca();
   } catch (x) { alert('Não consegui baixar (' + x.message + ').\nMuitos sites bloqueiam download direto pelo navegador. Baixe o arquivo e use "+ Adicionar".'); }
@@ -169,7 +191,7 @@ $('arq').onchange = async e => {
 // ---------- Biblioteca ----------
 async function mostrarBiblioteca() {
   $('leitor').style.display = 'none'; $('biblioteca').style.display = '';
-  ['voltar', 'btSum', 'btAj', 'btOuvir'].forEach(i => $(i).style.display = 'none'); $('btAdd').style.display = $('btUrl').style.display = ''; parar();
+  ['voltar', 'btSum', 'btAj', 'btOuvir', 'btParar'].forEach(i => $(i).style.display = 'none'); $('btAdd').style.display = $('btUrl').style.display = $('btCfg').style.display = ''; parar();
   $('titulo').textContent = '📚 Minha Biblioteca'; ['painel', 'sumario'].forEach(i => $(i).style.display = 'none');
   const ls = (await listar()).sort((a, b) => (b.lido || b.add) - (a.lido || a.add));
   $('grade').innerHTML = ls.length ? '' : '';
@@ -201,27 +223,107 @@ function gravar() {
 }
 function abrir(l) {
   atual = l; $('biblioteca').style.display = 'none'; $('leitor').style.display = 'block';
-  ['voltar', 'btSum', 'btAj', 'btOuvir'].forEach(i => $(i).style.display = ''); $('btAdd').style.display = $('btUrl').style.display = 'none';
+  ['voltar', 'btSum', 'btAj', 'btOuvir'].forEach(i => $(i).style.display = ''); $('btAdd').style.display = $('btUrl').style.display = $('btCfg').style.display = 'none';
   $('titulo').textContent = l.titulo;
   $('sumario').innerHTML = l.caps.map((c, n) => `<a data-n="${n}">${esc(c.titulo)}</a>`).join('');
   aplicarCfg(); renderCap(l.cap, l.scroll);
 }
-// ---------- Ouvir (voz do navegador) ----------
-let falando = false;
-const P = (window.Capacitor && Capacitor.Plugins) || {}, nativoTTS = P.TextToSpeech;
-function dizer(texto) {
-  if (nativoTTS) return nativoTTS.speak({text: texto, lang: 'pt-BR', rate: 1, category: 'playback'}).catch(() => {});
-  return new Promise(ok => { const u = new SpeechSynthesisUtterance(texto); u.lang = 'pt-BR'; u.onend = u.onerror = ok; speechSynthesis.speak(u); });
+// ---------- Ouvir (voz do Android / do navegador) ----------
+const P = (window.Capacitor && Capacitor.Plugins) || {}, nativoTTS = P.TextToSpeech, FS = P.ForegroundService, NV = P.LeitorNativo;
+const noApp = !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform());
+let vozes = [], tok = 0, parIdx = 0, estado = 'parado', prazo = null, soCap = false;
+
+async function carregarVozes() {
+  try {
+    if (nativoTTS) vozes = (await nativoTTS.getSupportedVoices()).voices.map((v, i) => ({i, nome: v.name, lang: v.lang}));
+    else vozes = speechSynthesis.getVoices().map((v, i) => ({i, nome: v.name, lang: v.lang}));
+  } catch (e) { vozes = []; }
+  const pt = vozes.filter(v => /^pt/i.test(v.lang)), lista = pt.length ? pt : vozes;
+  $('voz').innerHTML = '<option value="">Padrão do sistema</option>' + lista.map(v => `<option value="${esc(v.nome)}">${esc(v.nome)} (${esc(v.lang)})</option>`).join('');
+  $('voz').value = cfg.voz;
 }
-function parar() { falando = false; if (nativoTTS) nativoTTS.stop().catch(() => {}); else speechSynthesis.cancel();
-  if (P.KeepAwake) P.KeepAwake.allowSleep().catch(() => {}); $('btOuvir').textContent = '🔊'; }
-function falar(i = 0) {
-  const ps = [...$('texto').querySelectorAll('p,h1,h2,h3,li')].filter(e => e.textContent.trim());
-  if (!falando || i >= ps.length) { if (falando && atual.cap < atual.caps.length - 1) { renderCap(atual.cap + 1); scrollTo(0, 0); return setTimeout(() => falar(0), 100); } return parar(); }
-  ps[i].scrollIntoView({block: 'center', behavior: 'smooth'}); ps[i].style.background = 'var(--line)';
-  dizer(ps[i].textContent).then(() => { ps[i].style.background = ''; if (falando) falar(i + 1); });
+if (!nativoTTS && window.speechSynthesis) speechSynthesis.onvoiceschanged = carregarVozes;
+
+function pedacos(t) {
+  const fr = t.match(/[^.!?…]+[.!?…]*\s*/g) || [t], out = [''];
+  for (const f of fr) { if ((out[out.length - 1] + f).length > 3000) out.push(''); out[out.length - 1] += f; }
+  return out.filter(x => x.trim());
 }
-$('btOuvir').onclick = () => { if (falando) return parar(); falando = true; $('btOuvir').textContent = '⏹'; if (P.KeepAwake) P.KeepAwake.keepAwake().catch(() => {}); falar(0); };
+function dizer(texto, enfileirar) {
+  const v = vozes.find(x => x.nome === cfg.voz);
+  const ps = pedacos(texto).map((c, n) => {
+    if (nativoTTS) {
+      const o = {text: c, lang: v ? v.lang : 'pt-BR', rate: cfg.vel, category: 'playback', queueStrategy: (enfileirar || n > 0) ? 1 : 0};
+      if (v) o.voice = v.i;
+      return nativoTTS.speak(o).catch(() => {});
+    }
+    return new Promise(ok => { const u = new SpeechSynthesisUtterance(c); u.lang = 'pt-BR'; u.rate = cfg.vel;
+      if (v) u.voice = speechSynthesis.getVoices()[v.i]; u.onend = u.onerror = ok; speechSynthesis.speak(u); });
+  });
+  return Promise.all(ps);
+}
+function calar() { if (nativoTTS) nativoTTS.stop().catch(() => {}); else speechSynthesis.cancel(); }
+
+// Notificação (serviço em primeiro plano: mantém a leitura com a tela apagada)
+async function notificar(inicio) {
+  if (!FS) return;
+  const o = {id: 1, title: atual ? atual.titulo : 'Leitor de Livros', smallIcon: 'ic_stat_leitor', silent: true, notificationChannelId: 'leitura', serviceType: 2,
+    body: (estado === 'pausado' ? '⏸ Pausado · ' : '🔊 Lendo · ') + (atual ? atual.caps[atual.cap].titulo : ''),
+    buttons: [{id: 1, title: estado === 'pausado' ? 'Continuar' : 'Pausar'}, {id: 2, title: 'Parar'}]};
+  try {
+    if (inicio) {
+      const pm = await FS.checkPermissions(); if (pm.display !== 'granted') await FS.requestPermissions();
+      await FS.createNotificationChannel({id: 'leitura', name: 'Leitura em voz alta', description: 'Controles da leitura', importance: 2});
+      await FS.startForegroundService(o);
+    } else await FS.updateForegroundService(o);
+  } catch (e) { console.warn(e); }
+}
+if (FS) FS.addListener('buttonClicked', e => { if (e.buttonId === 1) alternar(); else if (e.buttonId === 2) parar(); });
+
+const paragrafos = () => [...$('texto').querySelectorAll('p,h1,h2,h3,li')].filter(e => e.textContent.trim());
+async function lerCap(meu, ps, de) {
+  const pend = [], env = i => { if (i < ps.length && !pend[i]) pend[i] = dizer(ps[i].textContent, i > de); };
+  for (let i = de; i < de + 3; i++) env(i);
+  for (let i = de; i < ps.length; i++) {
+    parIdx = i; ps[i].scrollIntoView({block: 'center', behavior: 'smooth'}); ps[i].style.background = 'var(--line)';
+    await pend[i]; ps[i].style.background = '';
+    if (meu !== tok) return false;
+    env(i + 3);
+  }
+  return true;
+}
+async function iniciarLeitura(de) {
+  const meu = ++tok; estado = 'lendo'; ui();
+  if (NV) NV.wakeLock({ativo: true}).catch(() => {});
+  await notificar(true);
+  while (meu === tok) {
+    const ok = await lerCap(meu, paragrafos(), de); de = 0; parIdx = 0;
+    if (meu !== tok) return;
+    if (soCap || atual.cap >= atual.caps.length - 1) return parar();
+    renderCap(atual.cap + 1); scrollTo(0, 0); notificar(false);
+    await new Promise(r => setTimeout(r, 150));
+  }
+}
+function pausar() { if (estado !== 'lendo') return; tok++; estado = 'pausado'; calar(); ui(); notificar(false); }
+function alternar() { if (estado === 'lendo') pausar(); else if (estado === 'pausado') iniciarLeitura(parIdx); else iniciarLeitura(0); }
+function parar() {
+  const era = estado; tok++; estado = 'parado'; parIdx = 0; calar(); prazo = null; soCap = false;
+  if (era !== 'parado') { if (FS) FS.stopForegroundService().catch(() => {}); if (NV) NV.wakeLock({ativo: false}).catch(() => {}); }
+  document.querySelectorAll('#texto [style]').forEach(e => e.style.background = '');
+  if ($('timer')) $('timer').value = '0'; ui();
+}
+function ui() {
+  $('btOuvir').textContent = estado === 'lendo' ? '⏸' : '🔊';
+  $('btParar').style.display = estado !== 'parado' ? '' : 'none';
+  if (atual) { const c = atual.caps[atual.cap]; $('pos').textContent = `${atual.cap + 1} / ${atual.caps.length} · ${c.titulo.slice(0, 26)}` + (soCap ? ' · ⏲ fim do cap.' : prazo ? ' · ⏲ ' + Math.max(1, Math.ceil((prazo - Date.now()) / 60000)) + ' min' : ''); }
+}
+setInterval(() => { if (prazo && Date.now() >= prazo) parar(); else if (estado !== 'parado') ui(); }, 5000);
+$('btOuvir').onclick = alternar; $('btParar').onclick = parar;
+$('timer').onchange = e => { const v = e.target.value; soCap = v === 'cap'; prazo = (v === '0' || soCap) ? null : Date.now() + (+v) * 60000; ui(); };
+$('voz').onchange = e => { cfg.voz = e.target.value; aplicarCfg(); };
+$('vel').oninput = e => { cfg.vel = +e.target.value; aplicarCfg(); };
+$('testar').onclick = () => { calar(); dizer('Olá! Esta é a voz escolhida para ler o seu livro.'); };
+carregarVozes();
 const ir = d => { const n = atual.cap + d; if (n >= 0 && n < atual.caps.length) { renderCap(n); scrollTo(0, 0); } };
 $('ant').onclick = () => { parar(); ir(-1); }; $('prox').onclick = () => { parar(); ir(1); };
 $('voltar').onclick = async () => { parar(); clearTimeout(tmr); await salvar(atual); mostrarBiblioteca(); };
@@ -233,6 +335,87 @@ $('tam').oninput = e => { cfg.tam = +e.target.value; aplicarCfg(); };
 $('fonte').onchange = e => { cfg.fonte = e.target.value; aplicarCfg(); };
 addEventListener('scroll', () => atual && $('leitor').style.display === 'block' && gravar());
 addEventListener('keydown', e => { if ($('leitor').style.display === 'block') { if (e.key === 'ArrowRight') ir(1); if (e.key === 'ArrowLeft') ir(-1); } });
+
+// ---------- Ajustes do app: permissões, arquivos, atualização ----------
+const REPO = 'https://github.com/Jeanisaque/mouse-toque/releases/download/leitor/';
+async function statusPerm() {
+  if (!noApp) { $('stNotif').innerHTML = $('stArq').innerHTML = '<span class="ok">Não necessário no navegador.</span>'; return; }
+  let n = false, a = false;
+  try { n = FS && (await FS.checkPermissions()).display === 'granted'; } catch (e) {}
+  try { a = NV && (await NV.acessoArquivos()).concedido; } catch (e) {}
+  $('stNotif').innerHTML = 'Notificações (controles da leitura): ' + (n ? '<span class="ok">✔ permitido</span>' : '<span class="nok">✖ não permitido</span>');
+  $('stArq').innerHTML = 'Acesso aos arquivos (achar livros baixados): ' + (a ? '<span class="ok">✔ permitido</span>' : '<span class="nok">✖ não permitido</span>');
+  $('pNotif').style.display = n ? 'none' : ''; $('pArq').style.display = a ? 'none' : '';
+}
+$('btCfg').onclick = () => { $('cfgApp').style.display = 'flex'; statusPerm(); };
+$('fechaCfg').onclick = () => $('cfgApp').style.display = 'none';
+$('pNotif').onclick = async () => { try { await FS.requestPermissions(); } catch (e) {} statusPerm(); };
+$('pArq').onclick = async () => { try { await NV.pedirAcessoArquivos(); } catch (e) {} };
+if (P.App) P.App.addListener('appStateChange', st => { if (st.isActive) statusPerm(); });
+
+async function arquivoDoCelular(caminho, nome) {
+  const partes = []; let off = 0;
+  for (;;) {
+    const r = await NV.lerBloco({caminho, offset: off, tamanho: 3 * 1024 * 1024});
+    const bin = atob(r.dados), u = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    partes.push(u); off += u.length;
+    if (r.fim || !u.length) break;
+  }
+  return new File(partes, nome);
+}
+$('bProc').onclick = async () => {
+  const box = $('achados');
+  if (!noApp) { box.textContent = 'Disponível só no app do celular.'; return; }
+  box.textContent = 'Procurando...';
+  try {
+    if (!(await NV.acessoArquivos()).concedido) { box.innerHTML = '<span class="nok">Permita o acesso aos arquivos primeiro.</span>'; return; }
+    const ls = (await NV.procurarLivros()).livros;
+    box.innerHTML = ls.length ? '' : 'Nenhum livro encontrado em Download/Documentos.';
+    for (const l of ls) {
+      const d = document.createElement('div'); d.className = 'achado';
+      d.innerHTML = `<span>${esc(l.nome)}</span><span>${(l.tamanho / 1048576).toFixed(1)} MB</span>`;
+      d.onclick = async () => { d.textContent = 'Importando ' + l.nome + '...';
+        try { await importar(await arquivoDoCelular(l.caminho, l.nome)); d.textContent = '✔ ' + l.nome; mostrarBiblioteca(); } catch (x) { d.textContent = '✖ ' + l.nome + ': ' + x.message; } };
+      box.append(d);
+    }
+  } catch (x) { box.textContent = 'Erro: ' + x.message; }
+};
+
+async function verAtualizacao(silencioso) {
+  if (!noApp) { if (!silencioso) $('stAtu').textContent = 'Só no app do celular.'; return; }
+  try {
+    if (!silencioso) $('stAtu').textContent = 'Verificando...';
+    const r = await P.CapacitorHttp.get({url: REPO + 'versao-leitor.json?t=' + Date.now()});
+    const v = typeof r.data === 'string' ? JSON.parse(r.data) : r.data, meu = +(await P.App.getInfo()).build;
+    if (!(v.versionCode > meu)) { if (!silencioso) $('stAtu').textContent = 'Você já tem a versão mais nova.'; return; }
+    if (!confirm(`Nova versão ${v.versionName} disponível. Baixar e instalar agora?`)) return;
+    $('stAtu').textContent = 'Baixando...';
+    NV.addListener('progresso', e => $('stAtu').textContent = 'Baixando... ' + e.pct + '%');
+    await NV.instalar({url: REPO + 'LeitorDeLivros.apk'});
+  } catch (x) {
+    if (String(x.message || x).includes('permissao')) alert('Permita "Instalar apps desconhecidos" para o Leitor de Livros e toque em atualizar de novo.');
+    else if (!silencioso) $('stAtu').textContent = 'Falhou: ' + (x.message || x);
+  }
+}
+$('bAtu').onclick = () => verAtualizacao(false);
+
+// Baixar por link (no app usa o download nativo, sem bloqueio do navegador)
+async function baixar(u) {
+  if (P.CapacitorHttp) {
+    const r = await P.CapacitorHttp.get({url: u, responseType: 'blob', readTimeout: 120000, connectTimeout: 20000});
+    if (r.status >= 400) throw new Error('HTTP ' + r.status);
+    const bin = atob(r.data), a = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+    return new Blob([a], {type: (r.headers['Content-Type'] || r.headers['content-type'] || '')});
+  }
+  const r = await fetch(u); if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob();
+}
+
+if (noApp) {
+  if (!localStorage.getItem('primeira')) { localStorage.setItem('primeira', '1'); $('btCfg').click(); }
+  setTimeout(() => verAtualizacao(true), 3000);
+}
 
 aplicarCfg(); mostrarBiblioteca();
 </script>
