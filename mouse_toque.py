@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado pelos irmãos Joel Andrade e Isaque Andrade"
-VERSAO = "1.18"
+VERSAO = "1.19"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -599,7 +599,10 @@ class Atendente(socketserver.BaseRequestHandler):
                  "porta": self.server.porta}))
         elif rota == "/pc" and local:
             pagina = (PAGINA_PC.replace("{{URL}}", self.server.url)
-                      .replace("{{CODIGO}}", self.server.codigo))
+                      .replace("{{CODIGO}}", self.server.codigo)
+                      .replace("{{VERSAO}}", VERSAO)
+                      .replace("{{DATA}}", data_da_versao())
+                      .replace("{{AVISO}}", ATUALIZACAO["aviso"].replace("<", "&lt;")))
             self.responder(200, "text/html; charset=utf-8", pagina)
         elif rota == "/status" and local:
             self.responder(200, "application/json",
@@ -844,17 +847,32 @@ def _baixar(nome, limite=4):
         return r.read()
 
 
+ATUALIZACAO = {"aviso": ""}   # o que aconteceu ao procurar atualização (mostrado na página do PC)
+
+
+def data_da_versao():
+    """Quando esta versão começou a rodar neste PC (atualizada sozinha ou baixada)."""
+    cfg = ler_config()
+    if cfg.get("versao") != VERSAO or not cfg.get("versao_data"):
+        cfg["versao"] = VERSAO
+        cfg["versao_data"] = time.strftime("%d/%m/%Y às %H:%M")
+        salvar_config(cfg)
+    return cfg["versao_data"]
+
+
 def verificar_atualizacao(argv):
     """Procura versão nova no GitHub e, se houver, instala sozinho e reinicia."""
     print("  Procurando atualizações...", end=" ", flush=True)
     try:
-        info = json.loads(_baixar("versao.json").decode("utf-8"))
+        info = json.loads(_baixar("versao.json", limite=8).decode("utf-8"))
         nova = str(info.get("versao", "0"))
-    except Exception:
+    except Exception as e:
         print("sem conexão, seguindo com a versão atual.")
+        ATUALIZACAO["aviso"] = f"Não consegui procurar atualização (sem internet?: {e})"
         return False
     if _versao_tupla(nova) <= _versao_tupla(VERSAO):
         print(f"você já tem a versão mais nova ({VERSAO}).")
+        ATUALIZACAO["aviso"] = "✓ É a versão mais nova"
         return False
 
     print()
@@ -870,6 +888,7 @@ def verificar_atualizacao(argv):
         compile(texto, "mouse_toque.py", "exec")   # confere se não veio corrompido
     except Exception as e:
         print(f"  Não consegui baixar a atualização ({e}). Seguindo com a atual.\n")
+        ATUALIZACAO["aviso"] = f"A versão {nova} existe, mas não consegui baixar ({e})"
         return False
 
     atual = os.path.abspath(__file__)
@@ -883,10 +902,12 @@ def verificar_atualizacao(argv):
             f.write(codigo)
     except OSError as e:
         print(f"  Não consegui salvar a atualização ({e}). Seguindo com a atual.\n")
+        ATUALIZACAO["aviso"] = (f"A versão {nova} existe, mas a pasta do Touch Cell não deixa salvar ({e}). "
+                                "Tire a pasta de Arquivos de Programas ou abra como administrador.")
         return False
 
     print(f"  Atualizado para a versão {nova}! Reiniciando...\n")
-    resultado = subprocess.call([sys.executable, atual, "--sem-atualizar"] + argv)
+    resultado = subprocess.call([sys.executable, atual, "--sem-atualizar", "--atualizou"] + argv)
     sys.exit(resultado)
 
 
@@ -895,7 +916,14 @@ def main(argv=None):
     if "--sem-atualizar" not in argv and "--teste" not in argv:
         verificar_atualizacao(argv)
     teste = "--teste" in argv
-    if not teste and abrir_como_admin([a for a in argv if a != "--sem-atualizar"]):
+    cfg = ler_config()
+    if "--atualizou" in argv:
+        ATUALIZACAO["aviso"] = "✓ Acabou de se atualizar sozinho"
+    if ATUALIZACAO["aviso"]:          # guarda para a janela de administrador mostrar também
+        cfg["aviso_atualizacao"] = ATUALIZACAO["aviso"]; salvar_config(cfg)
+    else:
+        ATUALIZACAO["aviso"] = cfg.get("aviso_atualizacao", "")
+    if not teste and abrir_como_admin([a for a in argv if a not in ("--sem-atualizar", "--atualizou")]):
         sys.exit(0)
     porta = PORTA_PADRAO
     if "--porta" in argv:
@@ -1943,7 +1971,10 @@ h1{margin:0 0 6px;font-size:26px}
 .fw b{color:var(--txt)}
 .fw button{margin-top:10px;width:100%;padding:12px;border:0;border-radius:10px;background:var(--acc);color:#fff;font-size:15.5px;font-weight:600;cursor:pointer}
 .fw button:disabled{opacity:.6;cursor:wait}
-.creditos{margin-top:26px;padding-top:18px;border-top:1px solid var(--borda);color:var(--sub);font-size:13.5px}
+.versao{margin-top:22px;color:var(--sub);font-size:13.5px;line-height:1.6}
+.versao b{color:var(--txt)}
+.versao span{font-size:12.5px}
+.creditos{margin-top:18px;padding-top:18px;border-top:1px solid var(--borda);color:var(--sub);font-size:13.5px}
 .creditos b{color:var(--txt)}
 </style>
 </head>
@@ -1961,6 +1992,7 @@ h1{margin:0 0 6px;font-size:26px}
     <li>No app <b>Touch Cell PC</b> do celular, o PC aparece sozinho. Sem o app, leia o QR code.</li>
     <li>Dica: use "Adicionar à tela inicial" para abrir como app.</li>
   </ol>
+  <div class="versao">Versão <b>{{VERSAO}}</b> · atualizada em {{DATA}}<br><span>{{AVISO}}</span></div>
   <div class="creditos">Criado pelos irmãos <b>Joel Andrade</b> e <b>Isaque Andrade</b></div>
 </div>
 <script>

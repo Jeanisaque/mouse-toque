@@ -1,6 +1,6 @@
 {
-  "versao": "1.18",
+  "versao": "1.19",
   "novidades": [
-    "O Touch Cell pede permissão de administrador ao abrir: assim o mouse funciona em qualquer PC"
+    "A página do PC mostra a versão, a data da última atualização e se a atualização automática deu certo"
   ]
 }
