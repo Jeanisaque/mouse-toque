@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado pelos irmãos Joel Andrade e Isaque Andrade"
-VERSAO = "1.17"
+VERSAO = "1.18"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -779,6 +779,27 @@ def liberar_firewall(porta):
     return False
 
 
+def abrir_como_admin(argv):
+    """Em alguns PCs o Windows só deixa mexer o mouse se o Touch Cell for administrador.
+    Pede a permissão (UAC) e reabre. True se a cópia de administrador foi aberta."""
+    if sys.platform != "win32":
+        return False
+    import ctypes
+    try:
+        if ctypes.windll.shell32.IsUserAnAdmin():
+            return False
+    except Exception:
+        return False
+    print("  Pedindo permissão de administrador (clique em SIM na janela do Windows)...")
+    params = subprocess.list2cmdline([os.path.abspath(__file__), "--sem-atualizar"] + argv)
+    r = ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, params, PASTA, 1)
+    if r <= 32:          # clicou em "Não": segue sem, pode não mexer o mouse em alguns PCs
+        print("  Sem permissão de administrador: em alguns PCs o mouse pode não se mexer.\n")
+        return False
+    print("\n  O Touch Cell abriu em outra janela. Pode fechar esta.")
+    return True
+
+
 def responder_busca(porta, parar):
     """Responde ao app do celular que pergunta 'tem Touch Cell aí?' pela rede (UDP)."""
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -874,6 +895,8 @@ def main(argv=None):
     if "--sem-atualizar" not in argv and "--teste" not in argv:
         verificar_atualizacao(argv)
     teste = "--teste" in argv
+    if not teste and abrir_como_admin([a for a in argv if a != "--sem-atualizar"]):
+        sys.exit(0)
     porta = PORTA_PADRAO
     if "--porta" in argv:
         try:

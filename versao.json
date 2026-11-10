@@ -1,7 +1,6 @@
 {
-  "versao": "1.17",
+  "versao": "1.18",
   "novidades": [
-    "No app do celular: o voltar fecha os Ajustes em vez de sair do controle",
-    "Na TV: Desligar e Reiniciar imagem mostram o resultado do teste"
+    "O Touch Cell pede permissão de administrador ao abrir: assim o mouse funciona em qualquer PC"
   ]
 }
