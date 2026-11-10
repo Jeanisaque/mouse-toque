@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado pelos irmãos Joel Andrade e Isaque Andrade"
-VERSAO = "1.19"
+VERSAO = "1.20"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -555,6 +555,9 @@ class Servidor(socketserver.ThreadingTCPServer):
             elif t == "cancelar_susp":
                 en.cancelar()
                 self.avisar_todos({"t": "susp", "resta": 0})
+            elif t == "encerrar":
+                print("  Encerrado pelo celular.")
+                threading.Timer(0.5, lambda: os._exit(0)).start()
         except Exception as e:
             print("  !! Erro em brilho/energia:", e)
 
@@ -615,6 +618,10 @@ class Atendente(socketserver.BaseRequestHandler):
             if ok:
                 print("  ✓ Touch Cell liberado no Firewall do Windows.")
             self.responder(200, "application/json", json.dumps({"ok": ok}))
+        elif rota == "/sair" and local:
+            # sem a janela preta, é por aqui que o Touch Cell é fechado
+            self.responder(200, "application/json", json.dumps({"ok": True}))
+            threading.Timer(0.3, lambda: os._exit(0)).start()
         else:
             self.responder(404, "text/plain; charset=utf-8", "Não encontrado")
 
@@ -671,7 +678,7 @@ class Atendente(socketserver.BaseRequestHandler):
                 if msg.get("t") == "ping":
                     ws.enviar('{"t":"pong"}')
                     continue
-                if msg.get("t") in ("brilho_ler", "brilho", "suspender", "cancelar_susp"):
+                if msg.get("t") in ("brilho_ler", "brilho", "suspender", "cancelar_susp", "encerrar"):
                     threading.Thread(target=srv.tratar_energia, args=(ws, msg), daemon=True).start()
                     continue
                 try:
@@ -782,6 +789,18 @@ def liberar_firewall(porta):
     return False
 
 
+def ja_aberto(porta):
+    """Se o Touch Cell já está rodando neste PC (escondido), devolve a porta dele."""
+    for p in range(porta, porta + 10):
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{p}/info", timeout=0.5) as r:
+                if json.loads(r.read().decode("utf-8")).get("tipo") == "pc":
+                    return p
+        except Exception:
+            continue
+    return None
+
+
 def abrir_como_admin(argv):
     """Em alguns PCs o Windows só deixa mexer o mouse se o Touch Cell for administrador.
     Pede a permissão (UAC) e reabre. True se a cópia de administrador foi aberta."""
@@ -795,11 +814,18 @@ def abrir_como_admin(argv):
         return False
     print("  Pedindo permissão de administrador (clique em SIM na janela do Windows)...")
     params = subprocess.list2cmdline([os.path.abspath(__file__), "--sem-atualizar"] + argv)
-    r = ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, params, PASTA, 1)
+    # pythonw: a cópia de administrador roda sem janela preta (fecha-se pela página do PC)
+    exe = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+    if not os.path.exists(exe):
+        exe = sys.executable
+    r = ctypes.windll.shell32.ShellExecuteW(None, "runas", exe, params, PASTA, 1)
     if r <= 32:          # clicou em "Não": segue sem, pode não mexer o mouse em alguns PCs
         print("  Sem permissão de administrador: em alguns PCs o mouse pode não se mexer.\n")
         return False
-    print("\n  O Touch Cell abriu em outra janela. Pode fechar esta.")
+    # fecha esta janela preta também
+    janela = ctypes.windll.kernel32.GetConsoleWindow()
+    if janela:
+        ctypes.windll.user32.PostMessageW(janela, 0x0010, 0, 0)   # WM_CLOSE
     return True
 
 
@@ -923,14 +949,26 @@ def main(argv=None):
         cfg["aviso_atualizacao"] = ATUALIZACAO["aviso"]; salvar_config(cfg)
     else:
         ATUALIZACAO["aviso"] = cfg.get("aviso_atualizacao", "")
-    if not teste and abrir_como_admin([a for a in argv if a not in ("--sem-atualizar", "--atualizou")]):
-        sys.exit(0)
     porta = PORTA_PADRAO
     if "--porta" in argv:
         try:
             porta = int(argv[argv.index("--porta") + 1])
         except (IndexError, ValueError):
             pass
+    aberto = None if teste else ja_aberto(porta)
+    if aberto:           # já está rodando: só mostra a página de novo
+        print("  O Touch Cell já está aberto. Mostrando a página dele...")
+        webbrowser.open(f"http://127.0.0.1:{aberto}/pc")
+        try:
+            import ctypes
+            janela = ctypes.windll.kernel32.GetConsoleWindow()
+            if janela:
+                ctypes.windll.user32.PostMessageW(janela, 0x0010, 0, 0)
+        except Exception:
+            pass
+        sys.exit(0)
+    if not teste and abrir_como_admin([a for a in argv if a not in ("--sem-atualizar", "--atualizou")]):
+        sys.exit(0)
 
     codigo = carregar_codigo("--novo-codigo" in argv)
     executor = Executor(criar_controle(teste))
@@ -1337,6 +1375,9 @@ body.digitando .teclas button{height:34px;font-size:12.5px}
       <span id="susp-texto"></span>
       <button class="mini perigo" id="susp-cancelar">Cancelar</button>
     </div>
+    <h3 class="subtitulo">Encerrar o Touch Cell no PC</h3>
+    <p class="dica-susp">Fecha o programa no PC. Para usar de novo, abra o Touch Cell no PC.</p>
+    <button class="mini perigo" id="encerrar-pc" style="width:100%">Encerrar</button>
     <button class="ok-btn" id="fechar-energia">Pronto</button>
   </div>
 </div>
@@ -1721,6 +1762,20 @@ document.querySelectorAll(".susp").forEach(function(btn){
 });
 el("susp-cancelar").addEventListener("click", function(){ vibrar(10); enviar({t:"cancelar_susp"}); });
 
+// encerrar o programa do PC (toque duas vezes para confirmar)
+let encerrarAte = 0;
+el("encerrar-pc").addEventListener("click", function(){
+  const b = el("encerrar-pc");
+  if (Date.now() > encerrarAte){
+    encerrarAte = Date.now() + 3500; b.textContent = "Toque de novo para encerrar"; vibrar(20);
+    setTimeout(function(){ if (Date.now() > encerrarAte) b.textContent = "Encerrar"; }, 3600);
+    return;
+  }
+  encerrarAte = 0; b.textContent = "Encerrar"; vibrar(15);
+  enviar({t:"encerrar"});
+  window.mtAviso("Touch Cell encerrado no PC");
+});
+
 // desligar a TV (nos ajustes, só no modo TV)
 let tvdConfirma = 0;
 const tvdAgora = el("tvd-agora");
@@ -1974,6 +2029,8 @@ h1{margin:0 0 6px;font-size:26px}
 .versao{margin-top:22px;color:var(--sub);font-size:13.5px;line-height:1.6}
 .versao b{color:var(--txt)}
 .versao span{font-size:12.5px}
+.sair{margin-top:16px;padding:10px 18px;border:1px solid var(--borda);border-radius:10px;background:transparent;color:var(--sub);font-size:14px;cursor:pointer}
+.sair:hover{color:var(--txt);border-color:#4a5161}
 .creditos{margin-top:18px;padding-top:18px;border-top:1px solid var(--borda);color:var(--sub);font-size:13.5px}
 .creditos b{color:var(--txt)}
 </style>
@@ -1993,6 +2050,7 @@ h1{margin:0 0 6px;font-size:26px}
     <li>Dica: use "Adicionar à tela inicial" para abrir como app.</li>
   </ol>
   <div class="versao">Versão <b>{{VERSAO}}</b> · atualizada em {{DATA}}<br><span>{{AVISO}}</span></div>
+  <button class="sair" id="sair">Fechar o Touch Cell</button>
   <div class="creditos">Criado pelos irmãos <b>Joel Andrade</b> e <b>Isaque Andrade</b></div>
 </div>
 <script>
@@ -2044,6 +2102,12 @@ async function verificar(){
   }catch(e){ document.getElementById("estado-txt").textContent = "Programa encerrado"; }
 }
 verificar(); setInterval(verificar, 2000);
+
+document.getElementById("sair").onclick = async function(){
+  if (!confirm("Fechar o Touch Cell? O celular vai parar de controlar o PC.")) return;
+  try{ await fetch("/sair", {cache:"no-store"}); }catch(e){}
+  document.body.innerHTML = "<div class='card'><h1>Touch Cell fechado</h1><p class='sub'>Pode fechar esta aba.</p></div>";
+};
 </script>
 </body>
 </html>

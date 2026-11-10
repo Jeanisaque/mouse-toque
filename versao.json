@@ -1,6 +1,8 @@
 {
-  "versao": "1.19",
+  "versao": "1.20",
   "novidades": [
+    "Sem janelas pretas: o Touch Cell roda escondido e fecha pelo botão na página do PC ou no celular (Brilho e energia)",
+    "Pode fechar a página do PC: o celular continua funcionando. Abrir de novo só mostra a página",
     "A página do PC mostra a versão, a data da última atualização e se a atualização automática deu certo"
   ]
 }
