@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado pelos irmãos Joel Andrade e Isaque Andrade"
-VERSAO = "1.20"
+VERSAO = "1.21"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -618,6 +618,13 @@ class Atendente(socketserver.BaseRequestHandler):
             if ok:
                 print("  ✓ Touch Cell liberado no Firewall do Windows.")
             self.responder(200, "application/json", json.dumps({"ok": ok}))
+        elif rota == "/inicio" and local:
+            self.responder(200, "application/json", json.dumps({"ok": inicio_automatico()}))
+        elif rota in ("/inicio/ligar", "/inicio/desligar") and local:
+            ligar = rota.endswith("ligar") and not rota.endswith("desligar")
+            ok = ligar_inicio(ligar)
+            c = ler_config(); c["inicio_recusado"] = not ligar; salvar_config(c)
+            self.responder(200, "application/json", json.dumps({"ok": ok, "ativo": inicio_automatico()}))
         elif rota == "/sair" and local:
             # sem a janela preta, é por aqui que o Touch Cell é fechado
             self.responder(200, "application/json", json.dumps({"ok": True}))
@@ -787,6 +794,56 @@ def liberar_firewall(porta):
         if firewall_liberado():
             return True
     return False
+
+
+TAREFA_INICIO = "Touch Cell"
+
+
+def _schtasks(*args):
+    return subprocess.run(["schtasks", *args], capture_output=True, timeout=15,
+                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+
+def inicio_automatico():
+    """True se o Touch Cell abre sozinho quando o Windows liga. None se não for Windows."""
+    if sys.platform != "win32":
+        return None
+    try:
+        return _schtasks("/Query", "/TN", TAREFA_INICIO).returncode == 0
+    except Exception:
+        return False
+
+
+def ligar_inicio(ligar=True):
+    """Tarefa do Windows: ao entrar no Windows, abre o Touch Cell escondido e já como
+    administrador (sem perguntar toda vez). Precisa estar rodando como administrador."""
+    if sys.platform != "win32":
+        return False
+    try:
+        if not ligar:
+            _schtasks("/Delete", "/TN", TAREFA_INICIO, "/F")
+            return True
+        exe = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+        if not os.path.exists(exe):
+            exe = sys.executable
+        # pelo PowerShell para poder rodar na bateria e sem limite de tempo (o schtasks não deixa)
+        q = lambda s: "'" + s.replace("'", "''") + "'"
+        args = subprocess.list2cmdline([os.path.abspath(__file__), "--inicio"])
+        script = "; ".join([
+            f"$a = New-ScheduledTaskAction -Execute {q(exe)} -Argument {q(args)} -WorkingDirectory {q(PASTA)}",
+            "$t = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME",
+            "$p = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest",
+            "$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries "
+            "-ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew",
+            f"Register-ScheduledTask -TaskName {q(TAREFA_INICIO)} -Action $a -Trigger $t -Principal $p "
+            "-Settings $s -Force | Out-Null",
+        ])
+        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                           capture_output=True, timeout=30,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return r.returncode == 0 and inicio_automatico()
+    except Exception:
+        return False
 
 
 def ja_aberto(porta):
@@ -1021,7 +1078,12 @@ def main(argv=None):
                     c = ler_config(); c["firewall_recusado"] = True; salvar_config(c)
             threading.Thread(target=pedir, daemon=True).start()
 
-    if "--sem-navegador" not in argv:
+    # abre sozinho com o Windows (pode desligar pela página do PC)
+    if not teste and inicio_automatico() is False and not ler_config().get("inicio_recusado"):
+        threading.Thread(target=ligar_inicio, daemon=True).start()
+
+    # ao ligar o PC ele já fica pronto escondido, sem abrir a página
+    if "--sem-navegador" not in argv and "--inicio" not in argv:
         threading.Timer(0.8, lambda: webbrowser.open(f"http://127.0.0.1:{porta}/pc")).start()
 
     try:
@@ -2029,6 +2091,9 @@ h1{margin:0 0 6px;font-size:26px}
 .versao{margin-top:22px;color:var(--sub);font-size:13.5px;line-height:1.6}
 .versao b{color:var(--txt)}
 .versao span{font-size:12.5px}
+.inicio{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:18px;font-size:15px;color:var(--txt);cursor:pointer}
+.inicio[hidden]{display:none}
+.inicio input{width:20px;height:20px;accent-color:var(--acc);cursor:pointer}
 .sair{margin-top:16px;padding:10px 18px;border:1px solid var(--borda);border-radius:10px;background:transparent;color:var(--sub);font-size:14px;cursor:pointer}
 .sair:hover{color:var(--txt);border-color:#4a5161}
 .creditos{margin-top:18px;padding-top:18px;border-top:1px solid var(--borda);color:var(--sub);font-size:13.5px}
@@ -2050,6 +2115,7 @@ h1{margin:0 0 6px;font-size:26px}
     <li>Dica: use "Adicionar à tela inicial" para abrir como app.</li>
   </ol>
   <div class="versao">Versão <b>{{VERSAO}}</b> · atualizada em {{DATA}}<br><span>{{AVISO}}</span></div>
+  <label class="inicio" id="inicio-box" hidden><input type="checkbox" id="inicio"> Abrir sozinho quando o PC ligar</label>
   <button class="sair" id="sair">Fechar o Touch Cell</button>
   <div class="creditos">Criado pelos irmãos <b>Joel Andrade</b> e <b>Isaque Andrade</b></div>
 </div>
@@ -2102,6 +2168,24 @@ async function verificar(){
   }catch(e){ document.getElementById("estado-txt").textContent = "Programa encerrado"; }
 }
 verificar(); setInterval(verificar, 2000);
+
+const caixaInicio = document.getElementById("inicio");
+async function verInicio(){
+  try{
+    const d = await (await fetch("/inicio", {cache:"no-store"})).json();
+    if (d.ok === null) return;
+    caixaInicio.checked = d.ok; document.getElementById("inicio-box").hidden = false;
+  }catch(e){}
+}
+caixaInicio.onchange = async function(){
+  caixaInicio.disabled = true;
+  try{
+    const d = await (await fetch(caixaInicio.checked ? "/inicio/ligar" : "/inicio/desligar", {cache:"no-store"})).json();
+    caixaInicio.checked = !!d.ativo;
+  }catch(e){}
+  caixaInicio.disabled = false;
+};
+verInicio(); setTimeout(verInicio, 3000);
 
 document.getElementById("sair").onclick = async function(){
   if (!confirm("Fechar o Touch Cell? O celular vai parar de controlar o PC.")) return;
