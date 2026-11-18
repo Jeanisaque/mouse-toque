@@ -1,7 +1,6 @@
 {
-  "versao": "1.21",
+  "versao": "1.22",
   "novidades": [
-    "Abre sozinho e escondido quando o PC liga: o celular já encontra o PC pelo Wi-Fi, sem abrir nada",
-    "Dá pra desligar isso na página do PC (Abrir sozinho quando o PC ligar)"
+    "A seta não trava mais quando o Touch Cell abre sozinho com o Windows"
   ]
 }

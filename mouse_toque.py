@@ -34,7 +34,7 @@ import webbrowser
 
 APP_NOME = "Touch Cell"
 CREDITOS = "Criado pelos irmãos Joel Andrade e Isaque Andrade"
-VERSAO = "1.21"
+VERSAO = "1.22"
 # De onde vêm as atualizações (repositório público no GitHub)
 URL_ATUALIZACAO = os.environ.get(
     "MOUSE_TOQUE_URL", "https://raw.githubusercontent.com/Jeanisaque/mouse-toque/main/")
@@ -834,7 +834,7 @@ def ligar_inicio(ligar=True):
             "$t = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME",
             "$p = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest",
             "$s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries "
-            "-ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew",
+            "-ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -Priority 4",
             f"Register-ScheduledTask -TaskName {q(TAREFA_INICIO)} -Action $a -Trigger $t -Principal $p "
             "-Settings $s -Force | Out-Null",
         ])
@@ -999,6 +999,17 @@ def main(argv=None):
     if "--sem-atualizar" not in argv and "--teste" not in argv:
         verificar_atualizacao(argv)
     teste = "--teste" in argv
+    if sys.platform == "win32":
+        # aberto pelo Agendador do Windows o programa começa com prioridade baixa e a seta trava:
+        # sobe para "acima do normal" (é leve, só repassa os toques)
+        try:
+            import ctypes
+            k32 = ctypes.windll.kernel32
+            k32.GetCurrentProcess.restype = ctypes.c_void_p
+            k32.SetPriorityClass.argtypes = (ctypes.c_void_p, ctypes.c_uint32)
+            k32.SetPriorityClass(k32.GetCurrentProcess(), 0x8000)
+        except Exception:
+            pass
     cfg = ler_config()
     if "--atualizou" in argv:
         ATUALIZACAO["aviso"] = "✓ Acabou de se atualizar sozinho"
@@ -1079,8 +1090,15 @@ def main(argv=None):
             threading.Thread(target=pedir, daemon=True).start()
 
     # abre sozinho com o Windows (pode desligar pela página do PC)
-    if not teste and inicio_automatico() is False and not ler_config().get("inicio_recusado"):
-        threading.Thread(target=ligar_inicio, daemon=True).start()
+    if not teste:
+        cfg = ler_config()
+        ativo = inicio_automatico()
+        if (ativo is False and not cfg.get("inicio_recusado")) or (ativo and cfg.get("tarefa_v") != 2):
+            def registrar():
+                # v2: a tarefa da 1.21 rodava com prioridade baixa e a seta travava
+                if ligar_inicio():
+                    c = ler_config(); c["tarefa_v"] = 2; salvar_config(c)
+            threading.Thread(target=registrar, daemon=True).start()
 
     # ao ligar o PC ele já fica pronto escondido, sem abrir a página
     if "--sem-navegador" not in argv and "--inicio" not in argv:
